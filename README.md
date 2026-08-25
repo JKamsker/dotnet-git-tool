@@ -37,7 +37,7 @@ dotnet pack src/DotnetGitTool -c Release -o artifacts
 dotnet tool install --global JKToolKit.Git.Tool --add-source artifacts
 ```
 
-Packages are published from every push to `main` through NuGet trusted publishing. Versions start at `0.0.1`; the patch component is the number of commits after the immutable `nuget-v0.0.0` baseline tag, so each new commit advances it by one.
+Packages are published from every push to `main` through NuGet trusted publishing. GitVersion derives the version from the immutable `nuget-v0.0.0` baseline tag and mainline history, so each new commit advances the patch version automatically.
 
 ## Installed command style
 
