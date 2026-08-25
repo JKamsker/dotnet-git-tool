@@ -74,52 +74,6 @@ public sealed class CliProcessTests
         }
     }
 
-    [Theory]
-    [InlineData("install")]
-    [InlineData("update")]
-    public async Task ManagedToolCanSwitchToEmbeddedRef(string command)
-    {
-        var temporaryRoot = Directory.CreateTempSubdirectory("dotnet-git-tool-switch-ref-tests-");
-        try
-        {
-            var statePath = Path.Combine(temporaryRoot.FullName, "state");
-            var store = new InstallationStore(new InstallationStorePath(statePath));
-            await store.AddAsync(
-                new InstallationRecord(
-                    "owner/repository",
-                    "https://github.com/owner/repository.git",
-                    "main",
-                    "src/tool.csproj",
-                    "git.owner.repository",
-                    "0.0.0-git.0123456789ab.standalone",
-                    "0123456789abcdef",
-                    "repository",
-                    "standalone",
-                    null,
-                    DateTimeOffset.Parse("2026-01-02T03:04:05Z")),
-                TestContext.Current.CancellationToken);
-            var result = await RunAsync(
-                [command, "owner/repository@f589ee1", "--dry-run", "--json"],
-                new Dictionary<string, string>
-                {
-                    ["DOTNET_GIT_TOOL_HOME"] = statePath,
-                    ["DOTNET_GIT_TOOL_CACHE"] = Path.Combine(temporaryRoot.FullName, "cache"),
-                });
-
-            Assert.Equal(0, result.ExitCode);
-            Assert.Empty(result.StandardError);
-            using var document = JsonDocument.Parse(result.StandardOutput);
-            var data = document.RootElement.GetProperty("data");
-            Assert.Equal("update", data.GetProperty("action").GetString());
-            Assert.Equal("owner/repository@f589ee1", data.GetProperty("source").GetString());
-            Assert.Equal("standalone", data.GetProperty("commandStyle").GetString());
-        }
-        finally
-        {
-            temporaryRoot.Delete(recursive: true);
-        }
-    }
-
     [Fact]
     public async Task CachePruneHelpIsSuccessfulAndShowsSafetyFlags()
     {

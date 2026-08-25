@@ -340,9 +340,8 @@ jobs:
 ```
 
 The preview step earns its place by catching argument mistakes and recording the intended plan in the job
-log, not by verifying the repository. A pinned ref is recorded and inherited: a later
-`dotnet git-tool update JKamsker/bookmeta-cli` stays on `v1.2.0` rather than moving to the default branch.
-Pass `--ref` to move the pin, and uninstall then install again to remove it.
+log, not by verifying the repository. Repeat `--ref v1.2.0` on later updates to retain that pin. Omit a ref
+on `update` to remove the pin and use the remote default branch.
 
 ## What `meta.schemaVersion` 1 covers
 

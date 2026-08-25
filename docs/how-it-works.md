@@ -95,12 +95,12 @@ An install has no prior state to inherit from, so each value comes from the firs
 
 An update reads the installation record first and treats it as the baseline. What you type on the command line overrides the record; nothing else does:
 
-1. **Ref.** `--ref <REF>` or an `@ref` in the argument overrides the recorded ref. Otherwise the recorded ref is reused.
+1. **Ref.** `--ref <REF>` wins over an `@ref` embedded in the argument. With neither, the recorded pin is cleared and stage 2 resolves the remote default branch.
 2. **Project.** `--project <PATH>` overrides the recorded project. Otherwise the recorded project is reused, which reduces stage 3 to a single evaluation.
 3. **Command style.** `--standalone` or `--dotnet-command` overrides the recorded style. Otherwise the recorded style is reused. A record written without a style is inferred as dotnet style only when its recorded command begins with `dotnet ` or `dotnet-`, and as standalone style otherwise.
 4. **Clone URL and package ID.** Both come from the record, never from the argument. Passing a different URL that normalizes to the same source ID does not repoint the remote.
 
-An update therefore never silently retargets. The consequence worth planning for is that a recorded ref is sticky: after `install JKamsker/bookmeta-cli@v1.2.0`, a later `update JKamsker/bookmeta-cli` stays on `v1.2.0` rather than moving to the default branch. No flag clears a recorded ref. To go back to the default branch, run `uninstall` and then `install` without a ref.
+An update without a ref deliberately returns to the remote default branch. After `install JKamsker/bookmeta-cli@v1.2.0`, a later `update JKamsker/bookmeta-cli` fetches the latest default-branch commit, rebuilds it, and clears the recorded pin. Repeat the ref when the update should remain pinned.
 
 ## Stage 2: the cached repository
 
@@ -218,9 +218,9 @@ Each flag is doing specific work. `--add-source` makes the freshly packed `.nupk
 
 ## Stage 6: recording state
 
-After the global install succeeds, `dotnet-git-tool` appends an installation record to the installation state file. The record exists so that a later `update` is reproducible from state alone rather than from whatever you happen to type:
+After the global install succeeds, `dotnet-git-tool` appends an installation record to the installation state file. The record preserves the installed tool's identity and build choices for later updates:
 
-- `sourceId` is the key, and `cloneUrl` plus `requestedRef` let `update` fetch the same thing again without reparsing your argument.
+- `sourceId` is the key, `cloneUrl` identifies the remote, and `requestedRef` reports whether the last operation selected a pin or the default branch.
 - `project` lets `update` rebuild the same project, which is what makes a repository with several executables update deterministically after one `--project` choice.
 - `packageId` is reused verbatim, so the global tool keeps the identity it was installed under.
 - `commit` and `commandStyle` are what `update` compares against to decide between `unchanged` and a full repack.

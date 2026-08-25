@@ -241,9 +241,9 @@ dotnet git-tool update JKamsker/bookmeta-cli --ref v1.2.0 --yes
 
 `JKamsker/bookmeta-cli@v1.2.0` is equivalent to `--ref v1.2.0`. The ref is passed through to `git` unchanged,
 so a branch name or a commit SHA parses too; tags and branches resolve under the depth-1 fetch, while a bare
-commit SHA depends on what the remote will serve, as the table below records. A pinned ref is recorded and
-inherited by every later `update`, so once you have tested a tag, clear the pin by uninstalling and installing
-again.
+commit SHA depends on what the remote will serve, as the table below records. A pinned ref is recorded, but
+users must repeat it on later updates to remain pinned. An update without a ref returns to the remote default
+branch.
 
 Finish by removing what you installed:
 

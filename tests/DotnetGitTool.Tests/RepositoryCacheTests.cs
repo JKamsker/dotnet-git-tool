@@ -136,6 +136,60 @@ public sealed class RepositoryCacheTests
         }
     }
 
+    [Fact]
+    public async Task UnpinnedPreparationReturnsDetachedCacheToLatestDefaultBranchCommit()
+    {
+        var temporaryRoot = Directory.CreateTempSubdirectory("dotnet-git-tool-unpin-tests-");
+        try
+        {
+            var origin = Path.Combine(temporaryRoot.FullName, "origin");
+            Directory.CreateDirectory(origin);
+            var processes = new ProcessRunner();
+            var cancellationToken = TestContext.Current.CancellationToken;
+            await GitAsync(processes, origin, cancellationToken, "init", "--initial-branch=main");
+            await GitAsync(processes, origin, cancellationToken, "config", "user.name", "Cache Test");
+            await GitAsync(processes, origin, cancellationToken, "config", "user.email", "cache@example.invalid");
+            await File.WriteAllTextAsync(Path.Combine(origin, "source.txt"), "pinned\n", cancellationToken);
+            await GitAsync(processes, origin, cancellationToken, "add", ".");
+            await GitAsync(processes, origin, cancellationToken, "commit", "-m", "pinned");
+            var pinnedCommit = (await GitAsync(processes, origin, cancellationToken, "rev-parse", "HEAD"))
+                .StandardOutput.Trim();
+
+            var cache = new RepositoryCache(
+                processes,
+                new RepositoryCachePath(Path.Combine(temporaryRoot.FullName, "cache")));
+            var cloneUrl = new Uri(origin + Path.DirectorySeparatorChar).AbsoluteUri;
+            var pinnedSource = new SourceSpec(cloneUrl, "owner/repository", pinnedCommit[..7]);
+            await using (var repository = await cache.PrepareAsync(pinnedSource, cancellationToken))
+            {
+                Assert.Equal(pinnedCommit, repository.Commit);
+                Assert.Equal("HEAD", (await GitAsync(
+                    processes, repository.Path, cancellationToken, "rev-parse", "--abbrev-ref", "HEAD"))
+                    .StandardOutput.Trim());
+            }
+
+            await File.WriteAllTextAsync(Path.Combine(origin, "source.txt"), "latest\n", cancellationToken);
+            await GitAsync(processes, origin, cancellationToken, "add", "source.txt");
+            await GitAsync(processes, origin, cancellationToken, "commit", "-m", "latest");
+            var latestCommit = (await GitAsync(processes, origin, cancellationToken, "rev-parse", "HEAD"))
+                .StandardOutput.Trim();
+
+            var defaultSource = pinnedSource with { RequestedRef = null };
+            await using var updated = await cache.PrepareAsync(defaultSource, cancellationToken);
+
+            Assert.Equal(latestCommit, updated.Commit);
+            Assert.Equal("main", (await GitAsync(
+                processes, updated.Path, cancellationToken, "rev-parse", "--abbrev-ref", "HEAD"))
+                .StandardOutput.Trim());
+            Assert.Equal("latest", (await File.ReadAllTextAsync(
+                Path.Combine(updated.Path, "source.txt"), cancellationToken)).TrimEnd());
+        }
+        finally
+        {
+            DeleteGitTestDirectory(temporaryRoot.FullName);
+        }
+    }
+
     private static void DeleteGitTestDirectory(string path)
     {
         foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))

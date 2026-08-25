@@ -15,7 +15,8 @@ public sealed class ToolWorkflow(
     InstallationStore store,
     ToolPackager packager,
     IProcessRunner processes,
-    ICliOutput output)
+    ICliOutput output,
+    WorkflowExecution execution)
 {
     public async Task<int> InstallAsync(
         ToolCommandSettings settings,
@@ -24,13 +25,18 @@ public sealed class ToolWorkflow(
         string? project,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(settings, async () =>
+        return await execution.RunAsync(settings, async () =>
         {
             var source = sourceParser.Parse(sourceValue, requestedRef);
             var existing = await store.FindAsync(source.SourceId, cancellationToken);
             if (existing is not null)
             {
-                return await UpdateExistingAsync(settings, source, existing, project, cancellationToken);
+                return await UpdateExistingAsync(
+                    settings,
+                    existing,
+                    source.RequestedRef ?? existing.RequestedRef,
+                    project,
+                    cancellationToken);
             }
 
             var commandStyle = settings.ResolveCommandStyleOverride() ?? ToolCommandStyle.Dotnet;
@@ -122,7 +128,7 @@ public sealed class ToolWorkflow(
         string? project,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(settings, async () =>
+        return await execution.RunAsync(settings, async () =>
         {
             var commandStyleOverride = settings.ResolveCommandStyleOverride();
             var requested = sourceParser.Parse(sourceValue, requestedRef);
@@ -133,8 +139,8 @@ public sealed class ToolWorkflow(
                     ExitCodes.NotFound);
             return await UpdateExistingAsync(
                 settings,
-                requested,
                 installed,
+                requested.RequestedRef,
                 project,
                 cancellationToken,
                 commandStyleOverride);
@@ -143,8 +149,8 @@ public sealed class ToolWorkflow(
 
     private async Task<int> UpdateExistingAsync(
         ToolCommandSettings settings,
-        SourceSpec requested,
         InstallationRecord installed,
+        string? requestedRef,
         string? project,
         CancellationToken cancellationToken,
         ToolCommandStyle? commandStyleOverride = null)
@@ -153,7 +159,7 @@ public sealed class ToolWorkflow(
         var source = new SourceSpec(
             installed.CloneUrl,
             installed.SourceId,
-            requested.RequestedRef ?? installed.RequestedRef);
+            requestedRef);
         var selectedProject = project ?? installed.Project;
         var installedStyle = ToolCommandIdentity.InferInstalledStyle(installed);
         var commandStyle = commandStyleOverride ?? installedStyle;
@@ -247,7 +253,7 @@ public sealed class ToolWorkflow(
         string sourceValue,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(settings, async () =>
+        return await execution.RunAsync(settings, async () =>
         {
             var sourceId = sourceParser.NormalizeSourceId(sourceValue);
             var installed = await store.FindAsync(sourceId, cancellationToken)
@@ -273,31 +279,6 @@ public sealed class ToolWorkflow(
                 (installed.RepositoryPath is null ? string.Empty : $" Cached sources retained at {installed.RepositoryPath}."));
             return ExitCodes.Success;
         });
-    }
-
-    private async Task<int> ExecuteAsync(GlobalSettings settings, Func<Task<int>> action)
-    {
-        try
-        {
-            return await action();
-        }
-        catch (CliException exception)
-        {
-            output.Failure(settings, exception);
-            return exception.ExitCode;
-        }
-        catch (OperationCanceledException)
-        {
-            var exception = new CliException("Operation cancelled.", "cancelled", ExitCodes.Cancelled);
-            output.Failure(settings, exception);
-            return exception.ExitCode;
-        }
-        catch (Exception exception)
-        {
-            var failure = new CliException(exception.Message, "unexpected_error");
-            output.Failure(settings, failure);
-            return failure.ExitCode;
-        }
     }
 
     private static string StyleName(ToolCommandStyle commandStyle)

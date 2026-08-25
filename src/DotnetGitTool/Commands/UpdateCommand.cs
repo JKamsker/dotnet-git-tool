@@ -12,7 +12,7 @@ public sealed class UpdateSettings : ToolCommandSettings
     public string Repository { get; init; } = string.Empty;
 
     [CommandOption("--ref <REF>")]
-    [Description("Branch, tag, or commit to update to; overrides the recorded ref.")]
+    [Description("Branch, tag, or commit to update to; omit to use the remote default branch.")]
     public string? Ref { get; init; }
 
     [CommandOption("-p|--project <PATH>")]

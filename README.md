@@ -114,7 +114,7 @@ Both styles install into the .NET global tools directory and both need that dire
 - `--dry-run` reports the plan from local state only. It clones nothing, executes no repository code, and never prompts.
 - `install`, `update`, `uninstall`, and `cache prune` require a confirmation at the terminal or `--yes`. Under `--json`, `--quiet`, or a redirected stdin or stderr they refuse with exit code 2 instead of prompting, except for a `cache prune` that has nothing to remove.
 - Pin what you install by appending a ref, `dotnet git-tool install JKamsker/bookmeta-cli@<REF>`, or by passing `--ref <REF>`. Clones are shallow, so branches and tags resolve by name while an arbitrary old commit may not be reachable.
-- An `update` keeps the recorded pin unless you pass a new `@ref` or `--ref`, which moves it. No flag clears a pin, so returning a pinned tool to the default branch means `uninstall` then `install` again.
+- An `update` without a ref switches to the remote default branch and pulls its latest commit. Pass a new `@ref` or `--ref` to remain pinned or move to another ref.
 - The cached repository is retained and inspectable. `dotnet git-tool cache show JKamsker/bookmeta-cli` prints its path, so you can read the code that was built.
 - Misspelled options are ignored rather than rejected, so `--dryrun --yes` performs a real installation. A genuine preview says `Would prepare` and installs nothing, so check for that line before you trust a dry run.
 

@@ -78,7 +78,7 @@ error: 'JKamsker/bookmeta-cli' is already managed. Use 'dotnet git-tool update J
 
 Why: an installation record already exists for that source ID. Source IDs are compared without regard to case, and the `owner/repo`, SSH, and HTTP(S) URL forms of the same GitHub repository all normalize to the same source ID, so a different spelling still matches.
 
-Fix: run `update` instead of `install`. There is no force flag. To start over, run `uninstall` and then `install`. That is also the only way to clear a pinned ref, because `update` reuses the recorded ref when you do not pass a new one.
+Fix: run `update` instead of `install`. There is no force flag. To start over completely, run `uninstall` and then `install`. To clear a pinned ref, run `update` without a ref; it switches to the remote default branch.
 
 ### Nothing is recorded for that repository (`installation_not_found`)
 

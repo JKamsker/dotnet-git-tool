@@ -264,18 +264,19 @@ Refreshes the cached repository for a managed source ID, rebuilds it, and update
 
 | Option | Description |
 |---|---|
-| `--ref <REF>` | Branch, tag, or commit to update to; overrides the recorded ref. |
+| `--ref <REF>` | Branch, tag, or commit to update to; omit to use the remote default branch. |
 | `-p, --project <PATH>` | Override the recorded project file or directory. |
 | `--standalone` | Expose an unprefixed command, such as 'bookmeta'. |
 | `--dotnet-command` | Expose a .NET subcommand, such as 'dotnet bookmeta' (the install default). |
 
 Plus the [mutation options](#mutation-options) and the [global options](#global-options).
 
-`update` inherits from the installation record everything you do not pass:
+`update` uses the remote default branch when you omit a ref. Other omitted values come from the installation
+record:
 
 | Value | Source when you omit the option |
 |---|---|
-| Requested ref | The recorded `requestedRef`. A pin persists: after `install JKamsker/bookmeta-cli@v1.2.0`, a plain `update JKamsker/bookmeta-cli` stays on `v1.2.0`. To clear a pin, uninstall and install again without a ref. |
+| Requested ref | None. The remote default branch is selected and the recorded `requestedRef` becomes null. |
 | Project | The recorded `project`. |
 | Clone URL | The recorded `cloneUrl`. Passing a different URL that normalizes to the same source ID does not repoint the remote. |
 | Command style | The recorded `commandStyle`. A record without `commandStyle` is inferred as standalone style unless its `command` string starts with `dotnet ` or `dotnet-`; pass `--dotnet-command` to correct a misinferred record. |

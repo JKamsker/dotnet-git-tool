@@ -25,6 +25,7 @@ services.AddSingleton<ProjectDiscovery>();
 services.AddSingleton(new InstallationStorePath());
 services.AddSingleton<InstallationStore>();
 services.AddSingleton<ToolPackager>();
+services.AddSingleton<WorkflowExecution>();
 services.AddSingleton<ToolWorkflow>();
 
 var app = new CommandApp(new TypeRegistrar(services));

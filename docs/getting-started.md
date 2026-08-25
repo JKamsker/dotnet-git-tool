@@ -188,9 +188,9 @@ When there is a new commit, the message starts with `Updated`, names the new sho
 invocation, and the tool is repacked and reinstalled. Under `--json` the two outcomes are the `action`
 values `unchanged` and `updated`, which is the reliable way to tell them apart in a script.
 
-`update` reuses the ref, project, clone URL, and command style recorded at install time, so
-`update JKamsker/bookmeta-cli` needs no other arguments. No command updates everything at once, and nothing
-updates itself in the background.
+`update` reuses the project, clone URL, and command style recorded at install time. It uses the remote default
+branch unless you supply a ref, so `update JKamsker/bookmeta-cli` needs no other arguments. No command updates
+everything at once, and nothing updates itself in the background.
 
 ## Step 6: uninstall
 
@@ -261,12 +261,12 @@ Would refresh cached sources for JKamsker/bookmeta-cli@v1.2.0, rebuild src/Audio
 
 Three things change once you apply a pin. The cached repository is checked out detached at the fetched ref;
 `dotnet git-tool cache show JKamsker/bookmeta-cli` reports the checked-out state and the ref that is pinned,
-and [Repository cache](repository-cache.md) covers that command. The ref is stored in the installation
-record, so every later `update JKamsker/bookmeta-cli` fetches `v1.2.0` again and never moves to the default
-branch. And clones are shallow, so a bare commit SHA that a depth-1 fetch cannot reach may fail where a tag
-or branch name succeeds.
+and [Repository cache](repository-cache.md) covers that command. The ref is stored in the installation record
+and remains there until the next update records its selection. Repeat the ref on each later update to remain
+pinned. And clones are shallow, so a bare commit SHA that a depth-1 fetch cannot reach may fail where a tag or
+branch name succeeds.
 
-No flag clears a pin: to go back to the default branch, uninstall and install again without a ref. An
+To clear a pin and go back to the default branch, run `update` without a ref. An
 explicit `--ref` always beats a ref embedded in the argument, and the `@ref` suffix is only read from the
 `owner/repo` form, so with an SSH or HTTP(S) URL `--ref` is the only way to pin.
 

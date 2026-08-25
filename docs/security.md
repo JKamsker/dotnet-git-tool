@@ -172,12 +172,12 @@ Would prepare cached sources for JKamsker/bookmeta-cli, discover a tool project,
 
 ### Ongoing
 
-- Re-review before you update. `update` fetches the current commit of the recorded ref and rebuilds it, which
-  runs that new commit's code. The pin itself persists: after installing `JKamsker/bookmeta-cli@v1.2.0`, plain
-  `update JKamsker/bookmeta-cli` stays on `v1.2.0`, and uninstalling and installing again is how you move off a
-  pin. `update` also takes the clone URL, the project path, and the command style from the installation record
-  rather than from your argument, so passing a different URL that normalizes to the same source ID does not
-  repoint the remote.
+- Re-review before you update. `update` fetches the current commit of the supplied ref, or the latest commit
+  of the remote default branch when no ref is supplied, and rebuilds it, which runs that new commit's code.
+  Repeat a ref on each update to remain pinned; a plain `update JKamsker/bookmeta-cli` returns to the default
+  branch. `update` also takes the clone URL, the project path, and the command style from the installation
+  record rather than from your argument, so passing a different URL that normalizes to the same source ID does
+  not repoint the remote.
 - Treat an untrusted repository as untrusted infrastructure. Build it on a throwaway machine or in a container,
   and point `DOTNET_GIT_TOOL_CACHE` and `DOTNET_GIT_TOOL_HOME` at directories inside it so nothing reaches your
   real repository cache or installation state file. Both are defined in [Configuration](configuration.md).
