@@ -149,7 +149,7 @@ public sealed class CliProcessTests
     }
 
     [Fact]
-    public async Task CacheListHumanOutputIsColumnarAndIncludesFullPath()
+    public async Task CacheListHumanOutputIsCompactFourColumnTable()
     {
         using var environment = new CachePruneEnvironment();
 
@@ -157,8 +157,13 @@ public sealed class CliProcessTests
 
         Assert.Equal(0, result.ExitCode);
         Assert.Empty(result.StandardError);
-        Assert.Contains("SOURCE\tMANAGED\tPACKAGE VERSION", result.StandardOutput);
-        Assert.Contains(environment.UnusedRepositoryPath, result.StandardOutput);
+        Assert.Contains("Source", result.StandardOutput);
+        Assert.Contains("Version", result.StandardOutput);
+        Assert.Contains("Installed at", result.StandardOutput);
+        Assert.Contains("Published at", result.StandardOutput);
+        Assert.DoesNotContain("Managed", result.StandardOutput);
+        Assert.DoesNotContain("Cache root", result.StandardOutput);
+        Assert.DoesNotContain(environment.UnusedRepositoryPath, result.StandardOutput);
         Assert.ThrowsAny<JsonException>(() => JsonDocument.Parse(result.StandardOutput));
     }
 

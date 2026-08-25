@@ -14,7 +14,8 @@ public sealed record CachedRepositoryInfo(
     bool IsGitRepository,
     bool? IsDirty,
     long? SizeBytes,
-    InstallationRecord? Installation)
+    InstallationRecord? Installation,
+    string? SourceVersion = null)
 {
     public bool IsManaged => Installation is not null;
 }

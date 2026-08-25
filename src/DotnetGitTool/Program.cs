@@ -6,13 +6,17 @@ using DotnetGitTool.Processes;
 using DotnetGitTool.Source;
 using DotnetGitTool.State;
 using DotnetGitTool.Workflows;
+using Spectre.Console;
 using Spectre.Console.Cli;
 
 var services = new ServiceRegistry();
 services.AddSingleton<ICliOutput>(new CliOutput(Console.Out, Console.Error));
+services.AddSingleton<IAnsiConsole>(AnsiConsole.Console);
+services.AddSingleton<CacheRepositoryTableRenderer>();
 services.AddSingleton<IProcessRunner, ProcessRunner>();
 services.AddSingleton<DotnetProjectRunner>();
 services.AddSingleton<SourceSpecParser>();
+services.AddSingleton<ProjectVersionReader>();
 services.AddSingleton(new RepositoryCachePath());
 services.AddSingleton<RepositoryCache>();
 services.AddSingleton<RepositoryCachePruner>();
@@ -52,7 +56,7 @@ app.Configure(config =>
     {
         cache.SetDescription("Inspect and maintain retained source repositories.");
         cache.AddCommand<CacheListCommand>("list")
-            .WithDescription("List cached repositories with revisions, dates, package versions, and full paths.")
+            .WithDescription("List cached repositories in a compact source, version, and date table.")
             .WithExample("cache", "list");
         cache.AddCommand<CacheShowCommand>("show")
             .WithDescription("Show Git, package, state, size, and path details for a cached repository.")

@@ -11,6 +11,7 @@ public sealed class CacheListSettings : GlobalSettings
 
 public sealed class CacheListCommand(
     RepositoryCacheInspector inspector,
+    CacheRepositoryTableRenderer tableRenderer,
     ICliOutput output) : AsyncCommand<CacheListSettings>
 {
     protected override async Task<int> ExecuteAsync(
@@ -21,14 +22,22 @@ public sealed class CacheListCommand(
         try
         {
             var inventory = await inspector.ListAsync(cancellationToken);
-            output.QueryResult(
-                settings,
-                new
-                {
-                    repositoryRoot = inventory.RepositoryRoot,
-                    repositories = inventory.Repositories,
-                },
-                CacheRepositoryFormatter.List(inventory));
+            if (settings.Json)
+            {
+                output.QueryResult(
+                    settings,
+                    new
+                    {
+                        repositoryRoot = inventory.RepositoryRoot,
+                        repositories = inventory.Repositories,
+                    },
+                    string.Empty);
+            }
+            else
+            {
+                tableRenderer.Render(inventory);
+            }
+
             return ExitCodes.Success;
         }
         catch (CliException exception)

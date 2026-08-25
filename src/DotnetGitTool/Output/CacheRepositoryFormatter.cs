@@ -1,38 +1,10 @@
 using System.Globalization;
-using System.Text;
 using DotnetGitTool.Source;
 
 namespace DotnetGitTool.Output;
 
 public static class CacheRepositoryFormatter
 {
-    public static string List(RepositoryCacheInventory inventory)
-    {
-        if (inventory.Repositories.Count == 0)
-        {
-            return $"No cached repositories found in {inventory.RepositoryRoot}.";
-        }
-
-        var output = new StringBuilder();
-        output.AppendLine($"Cache root: {inventory.RepositoryRoot}");
-        output.AppendLine();
-        output.AppendLine("SOURCE\tMANAGED\tPACKAGE VERSION\tCOMMIT\tREVISION\tCOMMITTED\tINSTALLED\tUPDATED\tPATH");
-        foreach (var repository in inventory.Repositories)
-        {
-            output.Append(repository.SourceId).Append('\t')
-                .Append(repository.IsManaged ? "yes" : "no").Append('\t')
-                .Append(repository.Installation?.Version ?? "-").Append('\t')
-                .Append(repository.Commit ?? "-").Append('\t')
-                .Append(repository.Revision ?? "-").Append('\t')
-                .Append(FormatDate(repository.CommitDate)).Append('\t')
-                .Append(FormatDate(repository.Installation?.InstalledAt)).Append('\t')
-                .Append(FormatDate(repository.Installation?.UpdatedAt)).Append('\t')
-                .AppendLine(repository.Path);
-        }
-
-        return output.ToString().TrimEnd();
-    }
-
     public static string Show(CachedRepositoryInfo repository)
     {
         var details = new (string Label, string Value)[]

@@ -6,11 +6,16 @@
     <RootNamespace>DotnetGitTool</RootNamespace>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>dotnet-git-tool</ToolCommandName>
-    <PackageId>dotnet-git-tool</PackageId>
-    <Version>0.4.0</Version>
+    <PackageId>JKToolKit.Git.Tool</PackageId>
+    <Version>0.0.1</Version>
     <Description>Build and install .NET global tools directly from Git repositories.</Description>
+    <Authors>JKamsker</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/JKamsker/dotnet-git-tool</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/JKamsker/dotnet-git-tool.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>dotnet-tool;git;source;cli</PackageTags>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Spectre.Console.Cli" Version="0.55.0" />

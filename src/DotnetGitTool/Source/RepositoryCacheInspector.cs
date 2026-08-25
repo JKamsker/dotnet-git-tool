@@ -10,6 +10,7 @@ public sealed class RepositoryCacheInspector(
     RepositoryCache repositoryCache,
     InstallationStore installationStore,
     SourceSpecParser sourceParser,
+    ProjectVersionReader projectVersionReader,
     IProcessRunner processes)
 {
     public async Task<RepositoryCacheInventory> ListAsync(CancellationToken cancellationToken = default)
@@ -123,7 +124,8 @@ public sealed class RepositoryCacheInspector(
             commit is not null,
             status is null ? null : !string.IsNullOrEmpty(status),
             null,
-            installation);
+            installation,
+            installation is null ? null : projectVersionReader.Read(fullPath, installation.Project));
     }
 
     private async Task<string?> GitValueAsync(
@@ -185,4 +187,5 @@ public sealed class RepositoryCacheInspector(
         => OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
             ? StringComparer.OrdinalIgnoreCase
             : StringComparer.Ordinal;
+
 }

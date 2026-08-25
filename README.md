@@ -21,14 +21,22 @@ dotnet git-tool cache prune --yes
 
 ## Install
 
-Build this repository and install the tool:
+Install the published tool from NuGet.org:
+
+```console
+dotnet tool install --global JKToolKit.Git.Tool
+```
+
+The package ID is `JKToolKit.Git.Tool`, while its command is named `dotnet-git-tool`. The .NET driver therefore invokes it as `dotnet git-tool`.
+
+To build and install this repository locally instead:
 
 ```console
 dotnet pack src/DotnetGitTool -c Release -o artifacts
-dotnet tool install --global dotnet-git-tool --add-source artifacts
+dotnet tool install --global JKToolKit.Git.Tool --add-source artifacts
 ```
 
-The command is named `dotnet-git-tool`, which makes the .NET driver invocation `dotnet git-tool` work.
+Packages are published from every push to `main` through NuGet trusted publishing. Versions start at `0.0.1`; the patch component is the number of commits after the immutable `nuget-v0.0.0` baseline tag, so each new commit advances it by one.
 
 ## Installed command style
 
@@ -84,7 +92,7 @@ Cache location precedence is:
 
 Each source identity maps to a deterministic directory under `repositories/`, with a per-repository lock to prevent concurrent builds from sharing a working tree. Uninstall retains the clean source cache so a later reinstall can reuse it.
 
-Inspect every retained repository with `dotnet git-tool cache list`. The human-readable columnar output includes the source identity, managed status, installed package version, full commit hash, Git revision or tag, commit date, installation and update dates, and the complete cache path. `--json` returns the same inventory in the stable v1 envelope.
+Inspect every retained repository with `dotnet git-tool cache list`. Human output is a compact Spectre.Console table containing only source, `[source-version|12-character-commit]`, installation date, and publication/commit date. `--json` returns the complete inventory—including full paths and detailed Git and package metadata—in the stable v1 envelope.
 
 Use `dotnet git-tool cache show <REPOSITORY>` for detailed origin, branch, commit, revision, commit date, clean/dirty status, disk size, package, command, project, installation/update dates, and full-path information. A repository can be selected by exact source ID, repository name, package ID, or cache directory name. Exact source IDs take precedence; ambiguous short names are rejected with the matching source IDs.
 

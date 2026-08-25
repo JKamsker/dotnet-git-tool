@@ -28,6 +28,7 @@ public sealed class RepositoryCacheInspectorTests
         Assert.True(repository.IsGitRepository);
         Assert.False(repository.IsDirty);
         Assert.True(repository.IsManaged);
+        Assert.Equal("1.2.3", repository.SourceVersion);
         Assert.Equal("1.2.3", repository.Installation!.Version);
         Assert.Equal(InspectorFixture.InstalledAt, repository.Installation.InstalledAt);
         Assert.Equal(InspectorFixture.UpdatedAt, repository.Installation.UpdatedAt);
@@ -106,6 +107,7 @@ public sealed class RepositoryCacheInspectorTests
                 repositoryCache,
                 InstallationStore,
                 new SourceSpecParser(),
+                new ProjectVersionReader(),
                 processes);
         }
 
@@ -121,8 +123,13 @@ public sealed class RepositoryCacheInspectorTests
             await GitAsync("init", "--initial-branch=main");
             await GitAsync("config", "user.name", "Inspector Test");
             await GitAsync("config", "user.email", "inspector@example.invalid");
+            Directory.CreateDirectory(Path.Combine(RepositoryPath, "src"));
+            await File.WriteAllTextAsync(
+                Path.Combine(RepositoryPath, "src", "tool.csproj"),
+                "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><Version>1.2.3</Version></PropertyGroup></Project>",
+                cancellationToken);
             await File.WriteAllTextAsync(Path.Combine(RepositoryPath, "source.txt"), "content", cancellationToken);
-            await GitAsync("add", "source.txt");
+            await GitAsync("add", ".");
             await GitAsync("commit", "-m", "initial");
             await GitAsync("remote", "add", "origin", Source.CloneUrl);
             return (await GitAsync("rev-parse", "HEAD")).StandardOutput.Trim();
