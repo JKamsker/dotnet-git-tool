@@ -10,6 +10,8 @@ dotnet git-tool install JKamsker/bookmeta-cli@v1.2.0 --yes
 dotnet git-tool update JKamsker/bookmeta-cli --yes
 dotnet git-tool uninstall JKamsker/bookmeta-cli --yes
 dotnet git-tool list
+dotnet git-tool cache list
+dotnet git-tool cache show JKamsker/bookmeta-cli
 dotnet git-tool cache prune --dry-run
 dotnet git-tool cache prune --yes
 ```
@@ -82,6 +84,10 @@ Cache location precedence is:
 
 Each source identity maps to a deterministic directory under `repositories/`, with a per-repository lock to prevent concurrent builds from sharing a working tree. Uninstall retains the clean source cache so a later reinstall can reuse it.
 
+Inspect every retained repository with `dotnet git-tool cache list`. The human-readable columnar output includes the source identity, managed status, installed package version, full commit hash, Git revision or tag, commit date, installation and update dates, and the complete cache path. `--json` returns the same inventory in the stable v1 envelope.
+
+Use `dotnet git-tool cache show <REPOSITORY>` for detailed origin, branch, commit, revision, commit date, clean/dirty status, disk size, package, command, project, installation/update dates, and full-path information. A repository can be selected by exact source ID, repository name, package ID, or cache directory name. Exact source IDs take precedence; ambiguous short names are rejected with the matching source IDs.
+
 Use `dotnet git-tool cache prune --dry-run` to list repository directories that are not referenced by managed installations. Run `dotnet git-tool cache prune --yes` to remove them. Pruning preserves managed repositories and skips repositories locked by another install, update, or prune operation. Cache-root resolution uses the precedence above; the command does not inspect or delete directories outside that resolved `repositories/` folder.
 
 ## Resolution and automation
@@ -94,7 +100,7 @@ Managed installation state includes the clone URL, cached repository path, proje
 2. `$XDG_DATA_HOME/dotnet-git-tool/installed.json`
 3. the platform local application-data directory under `dotnet-git-tool/installed.json`
 
-Human output is the default. `--json` selects a stable envelope with `ok`, `data`, `error`, and `meta.schemaVersion` (currently `1`). JSON data is written to stdout without progress chatter; human progress and errors use stderr. `list` renders a table in human mode.
+Human output is the default. `--json` selects a stable envelope with `ok`, `data`, `error`, and `meta.schemaVersion` (currently `1`). JSON data is written to stdout without progress chatter; human progress and errors use stderr. `list` renders a table in human mode and includes each managed repository's complete cache path.
 
 Errors are concise and actionable by default. `--verbose` adds resolved clone, project, commit, package, and command details to stderr in human mode; JSON output remains envelope-only.
 

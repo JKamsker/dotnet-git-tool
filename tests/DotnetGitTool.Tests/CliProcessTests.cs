@@ -136,6 +136,67 @@ public sealed class CliProcessTests
             data.GetProperty("removedRepositoryPaths")[0].GetString());
     }
 
+    [Fact]
+    public async Task CacheHelpShowsInspectionAndPruneCommands()
+    {
+        var result = await RunAsync(["cache", "--help"]);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("list", result.StandardOutput);
+        Assert.Contains("show", result.StandardOutput);
+        Assert.Contains("prune", result.StandardOutput);
+        Assert.Empty(result.StandardError);
+    }
+
+    [Fact]
+    public async Task CacheListHumanOutputIsColumnarAndIncludesFullPath()
+    {
+        using var environment = new CachePruneEnvironment();
+
+        var result = await RunAsync(["cache", "list", "--quiet"], environment.Variables);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Empty(result.StandardError);
+        Assert.Contains("SOURCE\tMANAGED\tPACKAGE VERSION", result.StandardOutput);
+        Assert.Contains(environment.UnusedRepositoryPath, result.StandardOutput);
+        Assert.ThrowsAny<JsonException>(() => JsonDocument.Parse(result.StandardOutput));
+    }
+
+    [Fact]
+    public async Task CacheShowJsonUsesEnvelopeAndIncludesFullPath()
+    {
+        using var environment = new CachePruneEnvironment();
+        var directoryName = Path.GetFileName(environment.UnusedRepositoryPath);
+
+        var result = await RunAsync(
+            ["cache", "show", directoryName, "--json"],
+            environment.Variables);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Empty(result.StandardError);
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        Assert.True(document.RootElement.GetProperty("ok").GetBoolean());
+        var repository = document.RootElement.GetProperty("data").GetProperty("repository");
+        Assert.Equal(environment.UnusedRepositoryPath, repository.GetProperty("path").GetString());
+        Assert.False(repository.GetProperty("isGitRepository").GetBoolean());
+    }
+
+    [Fact]
+    public async Task CacheShowMissingRepositoryReturnsNotFound()
+    {
+        using var environment = new CachePruneEnvironment();
+
+        var result = await RunAsync(
+            ["cache", "show", "missing", "--json"],
+            environment.Variables);
+
+        Assert.Equal(5, result.ExitCode);
+        Assert.Empty(result.StandardError);
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        Assert.Equal("cache_repository_not_found",
+            document.RootElement.GetProperty("error").GetProperty("kind").GetString());
+    }
+
     private static async Task<CliProcessResult> RunAsync(
         IReadOnlyList<string> arguments,
         IReadOnlyDictionary<string, string>? environment = null)

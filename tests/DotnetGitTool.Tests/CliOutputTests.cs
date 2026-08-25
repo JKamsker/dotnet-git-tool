@@ -7,6 +7,8 @@ namespace DotnetGitTool.Tests;
 
 public sealed class CliOutputTests
 {
+    private static readonly string ExampleRepositoryPath = Path.GetFullPath(Path.Combine("cache", "repository"));
+
     private static readonly InstallationRecord Example = new(
         "owner/repository",
         "https://github.com/owner/repository.git",
@@ -17,7 +19,7 @@ public sealed class CliOutputTests
         "0123456789abcdef",
         "example",
         "standalone",
-        null,
+        ExampleRepositoryPath,
         DateTimeOffset.UnixEpoch);
 
     [Fact]
@@ -30,6 +32,7 @@ public sealed class CliOutputTests
 
         Assert.StartsWith("SOURCE", stdout.ToString());
         Assert.Contains("owner/repository", stdout.ToString());
+        Assert.Contains(ExampleRepositoryPath, stdout.ToString());
         Assert.ThrowsAny<JsonException>(() => JsonDocument.Parse(stdout.ToString()));
     }
 

@@ -28,6 +28,18 @@ public sealed class CliOutput(TextWriter stdout, TextWriter stderr) : ICliOutput
         }
     }
 
+    public void QueryResult(GlobalSettings settings, object data, string humanMessage)
+    {
+        if (settings.Json)
+        {
+            WriteEnvelope(new { ok = true, data, error = (object?)null, meta = Meta() });
+        }
+        else
+        {
+            stdout.WriteLine(humanMessage);
+        }
+    }
+
     public void Success(GlobalSettings settings, object data, string humanMessage)
     {
         if (settings.Json)
@@ -78,12 +90,12 @@ public sealed class CliOutput(TextWriter stdout, TextWriter stderr) : ICliOutput
             return;
         }
 
-        const string format = "{0,-30} {1,-34} {2,-14} {3}";
-        stdout.WriteLine(format, "SOURCE", "PACKAGE", "COMMIT", "COMMAND");
+        const string format = "{0,-30} {1,-34} {2,-14} {3,-24} {4}";
+        stdout.WriteLine(format, "SOURCE", "PACKAGE", "COMMIT", "COMMAND", "CACHE PATH");
         foreach (var item in installations.OrderBy(item => item.SourceId, StringComparer.OrdinalIgnoreCase))
         {
             stdout.WriteLine(format, Truncate(item.SourceId, 30), Truncate(item.PackageId, 34),
-                Truncate(item.Commit, 14), item.Command ?? "-");
+                Truncate(item.Commit, 14), item.Command ?? "-", item.RepositoryPath ?? "-");
         }
     }
 

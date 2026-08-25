@@ -16,6 +16,7 @@ services.AddSingleton<SourceSpecParser>();
 services.AddSingleton(new RepositoryCachePath());
 services.AddSingleton<RepositoryCache>();
 services.AddSingleton<RepositoryCachePruner>();
+services.AddSingleton<RepositoryCacheInspector>();
 services.AddSingleton<ProjectDiscovery>();
 services.AddSingleton(new InstallationStorePath());
 services.AddSingleton<InstallationStore>();
@@ -50,6 +51,12 @@ app.Configure(config =>
     config.AddBranch("cache", cache =>
     {
         cache.SetDescription("Inspect and maintain retained source repositories.");
+        cache.AddCommand<CacheListCommand>("list")
+            .WithDescription("List cached repositories with revisions, dates, package versions, and full paths.")
+            .WithExample("cache", "list");
+        cache.AddCommand<CacheShowCommand>("show")
+            .WithDescription("Show Git, package, state, size, and path details for a cached repository.")
+            .WithExample("cache", "show", "JKamsker/bookmeta-cli");
         cache.AddCommand<CachePruneCommand>("prune")
             .WithDescription("Remove cached repositories not used by managed installations.")
             .WithExample("cache", "prune", "--dry-run")

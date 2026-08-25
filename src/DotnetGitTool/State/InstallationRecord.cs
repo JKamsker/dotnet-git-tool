@@ -11,7 +11,8 @@ public sealed record InstallationRecord(
     string? Command,
     string? CommandStyle,
     string? RepositoryPath,
-    DateTimeOffset InstalledAt);
+    DateTimeOffset InstalledAt,
+    DateTimeOffset? UpdatedAt = null);
 
 internal sealed record InstallationState(int SchemaVersion, List<InstallationRecord> Installations)
 {

@@ -8,6 +8,7 @@ public interface ICliOutput
 {
     void Status(GlobalSettings settings, string message);
     void Diagnostic(GlobalSettings settings, string message);
+    void QueryResult(GlobalSettings settings, object data, string humanMessage);
     void Success(GlobalSettings settings, object data, string humanMessage);
     void Failure(GlobalSettings settings, CliException exception);
     void List(GlobalSettings settings, IReadOnlyList<InstallationRecord> installations);

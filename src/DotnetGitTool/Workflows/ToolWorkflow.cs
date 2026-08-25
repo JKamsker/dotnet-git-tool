@@ -215,7 +215,7 @@ public sealed class ToolWorkflow(
                 Command = command.Invocation,
                 CommandStyle = command.StyleName,
                 RepositoryPath = repository.Path,
-                InstalledAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
             };
             await store.ReplaceAsync(record, cancellationToken);
             output.Success(settings,
