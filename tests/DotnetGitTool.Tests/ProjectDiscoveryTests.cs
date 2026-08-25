@@ -53,6 +53,16 @@ public sealed class ProjectDiscoveryTests
         Assert.Equal(2, exception.ExitCode);
     }
 
+    [Fact]
+    public void EmptyToolCommandFallsBackToAssemblyName()
+    {
+        var project = new ProjectMetadata("tool.csproj", "tool.csproj", "Exe", false, "bookmeta", string.Empty);
+
+        var selection = new ProjectSelection(project, null);
+
+        Assert.Equal("bookmeta", selection.CommandName);
+    }
+
     private static ProjectMetadata Project(string path, bool packAsTool, string outputType)
         => new(path, path, outputType, packAsTool, Path.GetFileNameWithoutExtension(path), null);
 }

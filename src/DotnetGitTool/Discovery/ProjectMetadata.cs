@@ -13,4 +13,12 @@ public sealed record ProjectMetadata(
 
 internal sealed record RepositoryManifest(string? Project, string? Command);
 
-public sealed record ProjectSelection(ProjectMetadata Project, string? CommandOverride);
+public sealed record ProjectSelection(ProjectMetadata Project, string? CommandOverride)
+{
+    public string CommandName
+        => !string.IsNullOrWhiteSpace(CommandOverride)
+            ? CommandOverride
+            : !string.IsNullOrWhiteSpace(Project.ToolCommandName)
+                ? Project.ToolCommandName
+                : Project.AssemblyName;
+}

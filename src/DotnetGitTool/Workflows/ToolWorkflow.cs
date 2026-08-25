@@ -55,7 +55,7 @@ public sealed partial class ToolWorkflow(
             var selection = await discovery.DiscoverAsync(repository.Path, project, cancellationToken);
             var packageId = GeneratePackageId(source.SourceId);
             var version = GenerateVersion(repository.Commit);
-            var command = selection.CommandOverride ?? selection.Project.ToolCommandName ?? selection.Project.AssemblyName;
+            var command = selection.CommandName;
             output.Diagnostic(settings, $"Selected project: {selection.Project.RelativePath}");
             output.Diagnostic(settings, $"Generated package: {packageId} {version}; command: {command}");
             var packageDirectory = await PackAsync(settings, repository, selection, packageId, version, cancellationToken);
@@ -139,7 +139,7 @@ public sealed partial class ToolWorkflow(
 
             var selection = await discovery.DiscoverAsync(repository.Path, selectedProject, cancellationToken);
             var version = GenerateVersion(repository.Commit);
-            var command = selection.CommandOverride ?? selection.Project.ToolCommandName ?? selection.Project.AssemblyName;
+            var command = selection.CommandName;
             output.Diagnostic(settings, $"Selected project: {selection.Project.RelativePath}");
             output.Diagnostic(settings, $"Generated package: {installed.PackageId} {version}; command: {command}");
             var packageDirectory = await PackAsync(settings, repository, selection, installed.PackageId, version, cancellationToken);
