@@ -1,0 +1,10 @@
+workflow: GitHubFlow/v1
+tag-prefix: 'nuget-v'
+commit-message-incrementing: Disabled
+strategies:
+  - TaggedCommit
+  - Mainline
+branches:
+  main:
+    mode: ContinuousDeployment
+    increment: Patch

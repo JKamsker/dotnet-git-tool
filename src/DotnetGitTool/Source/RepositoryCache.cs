@@ -99,10 +99,75 @@ public sealed partial class RepositoryCache(IProcessRunner processes, Repository
 
     private async Task CheckoutRefAsync(string path, string requestedRef, CancellationToken cancellationToken)
     {
-        (await processes.RunAsync("git", ["fetch", "--depth", "1", "origin", requestedRef], path, cancellationToken))
-            .EnsureSuccess($"Fetching ref {requestedRef}");
+        var fetch = await processes.RunAsync(
+            "git",
+            ["fetch", "--depth", "1", "origin", requestedRef],
+            path,
+            cancellationToken);
+        if (!fetch.Succeeded && AbbreviatedCommit().IsMatch(requestedRef))
+        {
+            var resolvedCommit = await ResolveCommitAsync(path, requestedRef, cancellationToken);
+            if (resolvedCommit is null)
+            {
+                await FetchReachableHistoryAsync(path, cancellationToken);
+                resolvedCommit = await ResolveCommitAsync(path, requestedRef, cancellationToken);
+            }
+
+            if (resolvedCommit is null)
+            {
+                throw new CliException(
+                    $"Could not resolve abbreviated commit '{requestedRef}' in reachable branch history. " +
+                    "Use the full 40-character commit hash if the commit is no longer reachable from a branch.",
+                    "ref_not_found",
+                    ExitCodes.NotFound);
+            }
+
+            (await processes.RunAsync("git", ["checkout", "--detach", resolvedCommit], path, cancellationToken))
+                .EnsureSuccess($"Checking out commit {resolvedCommit}");
+            return;
+        }
+
+        fetch.EnsureSuccess($"Fetching ref {requestedRef}");
         (await processes.RunAsync("git", ["checkout", "--detach", "FETCH_HEAD"], path, cancellationToken))
             .EnsureSuccess($"Checking out ref {requestedRef}");
+    }
+
+    private async Task FetchReachableHistoryAsync(string path, CancellationToken cancellationToken)
+    {
+        var shallow = (await processes.RunAsync(
+                "git",
+                ["rev-parse", "--is-shallow-repository"],
+                path,
+                cancellationToken))
+            .EnsureSuccess("Inspecting the cached repository")
+            .StandardOutput.Trim()
+            .Equals("true", StringComparison.OrdinalIgnoreCase);
+        var arguments = shallow
+            ? new[]
+            {
+                "fetch", "--unshallow", "--no-tags", "origin",
+                "+refs/heads/*:refs/remotes/origin/*",
+            }
+            : new[]
+            {
+                "fetch", "--no-tags", "origin",
+                "+refs/heads/*:refs/remotes/origin/*",
+            };
+        (await processes.RunAsync("git", arguments, path, cancellationToken))
+            .EnsureSuccess("Fetching branch history to resolve an abbreviated commit");
+    }
+
+    private async Task<string?> ResolveCommitAsync(
+        string path,
+        string abbreviatedCommit,
+        CancellationToken cancellationToken)
+    {
+        var result = await processes.RunAsync(
+            "git",
+            ["rev-parse", "--verify", "--quiet", $"{abbreviatedCommit}^{{commit}}"],
+            path,
+            cancellationToken);
+        return result.Succeeded ? result.StandardOutput.Trim() : null;
     }
 
     private async Task<string> ResolveDefaultBranchAsync(string path, CancellationToken cancellationToken)
@@ -198,6 +263,9 @@ public sealed partial class RepositoryCache(IProcessRunner processes, Repository
 
     [GeneratedRegex("[^A-Za-z0-9_.-]+")]
     private static partial Regex UnsafePathCharacter();
+
+    [GeneratedRegex("^[0-9a-fA-F]{4,39}$")]
+    private static partial Regex AbbreviatedCommit();
 }
 
 public sealed class RepositoryCachePath

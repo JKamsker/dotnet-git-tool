@@ -12,6 +12,7 @@
     <Authors>JKamsker</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
     <PackageProjectUrl>https://github.com/JKamsker/dotnet-git-tool</PackageProjectUrl>
     <RepositoryUrl>https://github.com/JKamsker/dotnet-git-tool.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
@@ -22,5 +23,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <None Include="../../assets/icon.png" Pack="true" PackagePath="/" />
   </ItemGroup>
 </Project>

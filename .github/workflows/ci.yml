@@ -21,7 +21,7 @@ jobs:
     name: Build, test, and package
     runs-on: ubuntu-latest
     outputs:
-      package-version: ${{ steps.version.outputs.value }}
+      package-version: ${{ steps.version.outputs.semVer }}
 
     steps:
       - name: Check out repository
@@ -32,6 +32,15 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v6.0.0
 
+      - name: Set up GitVersion
+        uses: gittools/actions/gitversion/setup@v4.7.0
+        with:
+          versionSpec: 6.8.2
+
+      - name: Resolve package version
+        id: version
+        uses: gittools/actions/gitversion/execute@v4.7.0
+
       - name: Restore dependencies
         run: dotnet restore dotnet-git-tool.slnx
 
@@ -41,25 +50,18 @@ jobs:
       - name: Test
         run: dotnet test dotnet-git-tool.slnx --configuration Release --no-build --no-restore
 
-      - name: Resolve package version
-        id: version
-        shell: pwsh
-        run: |
-          $version = & ./eng/Resolve-PackageVersion.ps1
-          "value=$version" >> $env:GITHUB_OUTPUT
-
       - name: Package tool
         run: >-
           dotnet pack src/DotnetGitTool/DotnetGitTool.csproj
           --configuration Release
           --no-restore
           --output artifacts
-          -p:Version=${{ steps.version.outputs.value }}
+          -p:Version=${{ steps.version.outputs.semVer }}
 
       - name: Upload NuGet tool package
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: JKToolKit.Git.Tool-${{ steps.version.outputs.value }}
+          name: JKToolKit.Git.Tool-${{ steps.version.outputs.semVer }}
           path: artifacts/*.nupkg
           if-no-files-found: error
 
