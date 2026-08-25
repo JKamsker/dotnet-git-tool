@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/DotnetGitTool/DotnetGitTool.csproj" />
+  <Project Path="tests/DotnetGitTool.Tests/DotnetGitTool.Tests.csproj" />
+</Solution>
