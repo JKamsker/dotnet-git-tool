@@ -10,6 +10,8 @@ dotnet git-tool install JKamsker/bookmeta-cli@v1.2.0 --yes
 dotnet git-tool update JKamsker/bookmeta-cli --yes
 dotnet git-tool uninstall JKamsker/bookmeta-cli --yes
 dotnet git-tool list
+dotnet git-tool cache prune --dry-run
+dotnet git-tool cache prune --yes
 ```
 
 > [!WARNING]
@@ -64,6 +66,8 @@ Ambiguity is an error. A directory passed to `--project` must contain exactly on
 
 Normal console projects are packed with `PackAsTool=true`. Generated packages use an ID such as `git.JKamsker.bookmeta-cli` and a commit/style-derived version such as `0.0.0-git.0123456789ab.dotnet`.
 
+MSBuild evaluation and packing initially honor the source repository's `global.json`. If SDK resolution fails and a strictly newer .NET SDK is already installed, `dotnet-git-tool` retries from an isolated working directory so the newer installed SDK can build the project. It does not retry with an older SDK or retry ordinary restore, compilation, or pack failures.
+
 ## Repository cache
 
 Source repositories are cloned once and retained in a cache. Install and update both reuse the same working tree; update fetches the remote default branch or requested ref and resets the cache to the fetched commit without creating local merge commits.
@@ -77,6 +81,8 @@ Cache location precedence is:
 3. `~/.cache/dotnet-git-tool` on Unix, or the platform local application-data cache on Windows
 
 Each source identity maps to a deterministic directory under `repositories/`, with a per-repository lock to prevent concurrent builds from sharing a working tree. Uninstall retains the clean source cache so a later reinstall can reuse it.
+
+Use `dotnet git-tool cache prune --dry-run` to list repository directories that are not referenced by managed installations. Run `dotnet git-tool cache prune --yes` to remove them. Pruning preserves managed repositories and skips repositories locked by another install, update, or prune operation. Cache-root resolution uses the precedence above; the command does not inspect or delete directories outside that resolved `repositories/` folder.
 
 ## Resolution and automation
 

@@ -4,7 +4,7 @@ using DotnetGitTool.Processes;
 
 namespace DotnetGitTool.Discovery;
 
-public sealed class ProjectDiscovery(IProcessRunner processes)
+public sealed class ProjectDiscovery(DotnetProjectRunner dotnet)
 {
     public async Task<ProjectSelection> DiscoverAsync(
         string repositoryRoot,
@@ -81,8 +81,7 @@ public sealed class ProjectDiscovery(IProcessRunner processes)
         string projectPath,
         CancellationToken cancellationToken)
     {
-        var result = (await processes.RunAsync(
-                "dotnet",
+        var result = (await dotnet.RunAsync(
                 [
                     "msbuild",
                     projectPath,

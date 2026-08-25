@@ -11,10 +11,13 @@ using Spectre.Console.Cli;
 var services = new ServiceRegistry();
 services.AddSingleton<ICliOutput>(new CliOutput(Console.Out, Console.Error));
 services.AddSingleton<IProcessRunner, ProcessRunner>();
+services.AddSingleton<DotnetProjectRunner>();
 services.AddSingleton<SourceSpecParser>();
 services.AddSingleton(new RepositoryCachePath());
 services.AddSingleton<RepositoryCache>();
+services.AddSingleton<RepositoryCachePruner>();
 services.AddSingleton<ProjectDiscovery>();
+services.AddSingleton(new InstallationStorePath());
 services.AddSingleton<InstallationStore>();
 services.AddSingleton<ToolPackager>();
 services.AddSingleton<ToolWorkflow>();
@@ -23,7 +26,8 @@ var app = new CommandApp(new TypeRegistrar(services));
 app.Configure(config =>
 {
     config.SetApplicationName("dotnet git-tool");
-    config.SetApplicationVersion("0.2.0");
+    config.SetApplicationVersion(
+        typeof(SourceSpecParser).Assembly.GetName().Version?.ToString(3) ?? "unknown");
     config.SetExceptionHandler((exception, _) =>
     {
         Console.Error.WriteLine($"error: {exception.Message}");
@@ -43,6 +47,14 @@ app.Configure(config =>
         .WithExample("uninstall", "JKamsker/bookmeta-cli", "--dry-run");
     config.AddCommand<ListCommand>("list")
         .WithDescription("List source tools managed by dotnet git-tool.");
+    config.AddBranch("cache", cache =>
+    {
+        cache.SetDescription("Inspect and maintain retained source repositories.");
+        cache.AddCommand<CachePruneCommand>("prune")
+            .WithDescription("Remove cached repositories not used by managed installations.")
+            .WithExample("cache", "prune", "--dry-run")
+            .WithExample("cache", "prune", "--yes");
+    });
 });
 
 var exitCode = await app.RunAsync(args);

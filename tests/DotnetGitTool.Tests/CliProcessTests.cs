@@ -73,6 +73,69 @@ public sealed class CliProcessTests
         }
     }
 
+    [Fact]
+    public async Task CachePruneHelpIsSuccessfulAndShowsSafetyFlags()
+    {
+        var result = await RunAsync(["cache", "prune", "--help"]);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("--dry-run", result.StandardOutput);
+        Assert.Contains("--yes", result.StandardOutput);
+        Assert.Empty(result.StandardError);
+    }
+
+    [Fact]
+    public async Task CachePruneDryRunJsonListsUnusedRepositoryWithoutDeletingIt()
+    {
+        using var environment = new CachePruneEnvironment();
+
+        var result = await RunAsync(
+            ["cache", "prune", "--dry-run", "--json"],
+            environment.Variables);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Empty(result.StandardError);
+        Assert.True(Directory.Exists(environment.UnusedRepositoryPath));
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        Assert.True(document.RootElement.GetProperty("ok").GetBoolean());
+        var data = document.RootElement.GetProperty("data");
+        Assert.Equal("cache_prune_preview", data.GetProperty("action").GetString());
+        Assert.Equal(environment.UnusedRepositoryPath,
+            data.GetProperty("unusedRepositoryPaths")[0].GetString());
+    }
+
+    [Fact]
+    public async Task CachePruneJsonRefusesDeletionWithoutYes()
+    {
+        using var environment = new CachePruneEnvironment();
+
+        var result = await RunAsync(["cache", "prune", "--json"], environment.Variables);
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Empty(result.StandardError);
+        Assert.True(Directory.Exists(environment.UnusedRepositoryPath));
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        Assert.Equal("confirmation_required",
+            document.RootElement.GetProperty("error").GetProperty("kind").GetString());
+    }
+
+    [Fact]
+    public async Task CachePruneYesJsonDeletesUnusedRepository()
+    {
+        using var environment = new CachePruneEnvironment();
+
+        var result = await RunAsync(["cache", "prune", "--yes", "--json"], environment.Variables);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Empty(result.StandardError);
+        Assert.False(Directory.Exists(environment.UnusedRepositoryPath));
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        var data = document.RootElement.GetProperty("data");
+        Assert.Equal("cache_pruned", data.GetProperty("action").GetString());
+        Assert.Equal(environment.UnusedRepositoryPath,
+            data.GetProperty("removedRepositoryPaths")[0].GetString());
+    }
+
     private static async Task<CliProcessResult> RunAsync(
         IReadOnlyList<string> arguments,
         IReadOnlyDictionary<string, string>? environment = null)
@@ -107,4 +170,27 @@ public sealed class CliProcessTests
     }
 
     private sealed record CliProcessResult(int ExitCode, string StandardOutput, string StandardError);
+
+    private sealed class CachePruneEnvironment : IDisposable
+    {
+        private readonly DirectoryInfo temporaryRoot =
+            Directory.CreateTempSubdirectory("dotnet-git-tool-cli-prune-tests-");
+
+        public CachePruneEnvironment()
+        {
+            var cachePath = Path.Combine(temporaryRoot.FullName, "cache");
+            UnusedRepositoryPath = Path.Combine(cachePath, "repositories", "owner-unused-0123456789ab");
+            Directory.CreateDirectory(UnusedRepositoryPath);
+            Variables = new Dictionary<string, string>
+            {
+                ["DOTNET_GIT_TOOL_CACHE"] = cachePath,
+                ["DOTNET_GIT_TOOL_HOME"] = Path.Combine(temporaryRoot.FullName, "state"),
+            };
+        }
+
+        public string UnusedRepositoryPath { get; }
+        public IReadOnlyDictionary<string, string> Variables { get; }
+
+        public void Dispose() => temporaryRoot.Delete(recursive: true);
+    }
 }

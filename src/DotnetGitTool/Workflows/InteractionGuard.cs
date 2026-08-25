@@ -54,4 +54,29 @@ internal static class InteractionGuard
             throw new CliException("Operation cancelled.", "cancelled", ExitCodes.Cancelled);
         }
     }
+
+    public static void ConfirmCachePrune(MutationSettings settings, int repositoryCount, string repositoryRoot)
+    {
+        if (repositoryCount == 0 || settings.DryRun || settings.Yes)
+        {
+            return;
+        }
+
+        const string alternative = "Inspect with --dry-run or explicitly confirm with --yes.";
+        if (settings.Json || settings.Quiet || Console.IsInputRedirected || Console.IsErrorRedirected)
+        {
+            throw new CliException(
+                $"Removing {repositoryCount} unused cached repositories requires confirmation. {alternative}",
+                "confirmation_required",
+                ExitCodes.Usage);
+        }
+
+        Console.Error.Write($"Remove {repositoryCount} unused cached repositories from '{repositoryRoot}'? [y/N] ");
+        var answer = Console.ReadLine();
+        if (!string.Equals(answer, "y", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(answer, "yes", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new CliException("Operation cancelled.", "cancelled", ExitCodes.Cancelled);
+        }
+    }
 }

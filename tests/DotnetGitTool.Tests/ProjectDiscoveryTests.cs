@@ -9,7 +9,7 @@ public sealed class ProjectDiscoveryTests
     public async Task EvaluatesAnOrdinaryConsoleProjectWithMsBuild()
     {
         var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../tests/Fixtures/SimpleTool"));
-        var discovery = new ProjectDiscovery(new Processes.ProcessRunner());
+        var discovery = new ProjectDiscovery(new Processes.DotnetProjectRunner(new Processes.ProcessRunner()));
 
         var selection = await discovery.DiscoverAsync(
             root,

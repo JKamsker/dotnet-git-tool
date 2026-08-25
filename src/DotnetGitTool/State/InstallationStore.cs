@@ -3,14 +3,14 @@ using DotnetGitTool.Infrastructure;
 
 namespace DotnetGitTool.State;
 
-public sealed class InstallationStore
+public sealed class InstallationStore(InstallationStorePath storePath)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true,
     };
 
-    public string StatePath => Path.Combine(ResolveDataDirectory(), "installed.json");
+    public string StatePath => Path.Combine(storePath.Value, "installed.json");
 
     public async Task<IReadOnlyList<InstallationRecord>> ListAsync(CancellationToken cancellationToken = default)
         => (await ReadAsync(cancellationToken)).Installations;
@@ -126,8 +126,15 @@ public sealed class InstallationStore
             }
         }
     }
+}
 
-    private static string ResolveDataDirectory()
+public sealed class InstallationStorePath
+{
+    public InstallationStorePath(string? path = null) => Value = path is null ? Resolve() : Path.GetFullPath(path);
+
+    public string Value { get; }
+
+    private static string Resolve()
     {
         var configured = Environment.GetEnvironmentVariable("DOTNET_GIT_TOOL_HOME");
         if (!string.IsNullOrWhiteSpace(configured))

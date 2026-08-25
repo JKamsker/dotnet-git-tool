@@ -5,7 +5,7 @@ using DotnetGitTool.Processes;
 
 namespace DotnetGitTool.Workflows;
 
-public sealed class ToolPackager(IProcessRunner processes, ICliOutput output)
+public sealed class ToolPackager(DotnetProjectRunner dotnet, ICliOutput output)
 {
     public async Task<PackedTool> PackAsync(
         GlobalSettings settings,
@@ -29,7 +29,7 @@ public sealed class ToolPackager(IProcessRunner processes, ICliOutput output)
         try
         {
             output.Status(settings, $"Packing {selection.Project.RelativePath}...");
-            (await processes.RunAsync("dotnet", arguments, repositoryPath, cancellationToken))
+            (await dotnet.RunAsync(arguments, repositoryPath, cancellationToken))
                 .EnsureSuccess($"Packing {selection.Project.RelativePath}");
             return new PackedTool(temporaryRoot, packageDirectory);
         }

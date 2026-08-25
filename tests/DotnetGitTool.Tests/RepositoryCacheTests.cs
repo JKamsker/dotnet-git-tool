@@ -29,7 +29,7 @@ public sealed class RepositoryCacheTests
         }
         finally
         {
-            temporaryRoot.Delete(recursive: true);
+            DeleteGitTestDirectory(temporaryRoot.FullName);
         }
     }
 
@@ -68,7 +68,8 @@ public sealed class RepositoryCacheTests
             }
 
             Assert.True(Directory.Exists(repositoryPath));
-            Assert.Equal("first\n", await File.ReadAllTextAsync(Path.Combine(repositoryPath, "source.txt"), cancellationToken));
+            Assert.Equal("first", (await File.ReadAllTextAsync(
+                Path.Combine(repositoryPath, "source.txt"), cancellationToken)).TrimEnd());
             Assert.False(Directory.Exists(Path.Combine(repositoryPath, "bin")));
             Assert.False(File.Exists(Path.Combine(repositoryPath, "untracked.tmp")));
             Assert.Empty((await GitAsync(processes, repositoryPath, cancellationToken, "status", "--porcelain")).StandardOutput);
@@ -80,14 +81,24 @@ public sealed class RepositoryCacheTests
             {
                 Assert.Equal(repositoryPath, repository.Path);
                 Assert.NotEqual(firstCommit, repository.Commit);
-                Assert.Equal("second\n", await File.ReadAllTextAsync(
-                    Path.Combine(repository.Path, "source.txt"), cancellationToken));
+                Assert.Equal("second", (await File.ReadAllTextAsync(
+                    Path.Combine(repository.Path, "source.txt"), cancellationToken)).TrimEnd());
             }
         }
         finally
         {
-            temporaryRoot.Delete(recursive: true);
+            DeleteGitTestDirectory(temporaryRoot.FullName);
         }
+    }
+
+    private static void DeleteGitTestDirectory(string path)
+    {
+        foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+        {
+            File.SetAttributes(file, FileAttributes.Normal);
+        }
+
+        Directory.Delete(path, recursive: true);
     }
 
     private static async Task<ProcessResult> GitAsync(
