@@ -5,7 +5,7 @@ using Spectre.Console.Cli;
 
 namespace DotnetGitTool.Commands;
 
-public sealed class UpdateSettings : MutationSettings
+public sealed class UpdateSettings : ToolCommandSettings
 {
     [CommandArgument(0, "<REPOSITORY>")]
     [Description("Previously installed owner/repo, optionally with a new @ref.")]
@@ -20,13 +20,23 @@ public sealed class UpdateSettings : MutationSettings
     public string? Project { get; init; }
 
     public override ValidationResult Validate()
-        => string.IsNullOrWhiteSpace(Repository)
-            ? ValidationResult.Error("A repository is required.")
-            : ValidationResult.Success();
+    {
+        if (string.IsNullOrWhiteSpace(Repository))
+        {
+            return ValidationResult.Error("A repository is required.");
+        }
+
+        return ValidationResult.Success();
+    }
 }
 
 public sealed class UpdateCommand(ToolWorkflow workflow) : AsyncCommand<UpdateSettings>
 {
     protected override Task<int> ExecuteAsync(CommandContext context, UpdateSettings settings, CancellationToken cancellationToken)
-        => workflow.UpdateAsync(settings, settings.Repository, settings.Ref, settings.Project, cancellationToken);
+        => workflow.UpdateAsync(
+            settings,
+            settings.Repository,
+            settings.Ref,
+            settings.Project,
+            cancellationToken);
 }

@@ -6,7 +6,7 @@ using Spectre.Console.Cli;
 
 namespace DotnetGitTool.Commands;
 
-public sealed class InstallSettings : MutationSettings
+public sealed class InstallSettings : ToolCommandSettings
 {
     [CommandArgument(0, "<REPOSITORY>")]
     [Description("GitHub owner/repo with an optional @ref, or a Git repository URL.")]
@@ -21,13 +21,23 @@ public sealed class InstallSettings : MutationSettings
     public string? Project { get; init; }
 
     public override ValidationResult Validate()
-        => string.IsNullOrWhiteSpace(Repository)
-            ? ValidationResult.Error("A repository is required.")
-            : ValidationResult.Success();
+    {
+        if (string.IsNullOrWhiteSpace(Repository))
+        {
+            return ValidationResult.Error("A repository is required.");
+        }
+
+        return ValidationResult.Success();
+    }
 }
 
 public sealed class InstallCommand(ToolWorkflow workflow) : AsyncCommand<InstallSettings>
 {
     protected override Task<int> ExecuteAsync(CommandContext context, InstallSettings settings, CancellationToken cancellationToken)
-        => workflow.InstallAsync(settings, settings.Repository, settings.Ref, settings.Project, cancellationToken);
+        => workflow.InstallAsync(
+            settings,
+            settings.Repository,
+            settings.Ref,
+            settings.Project,
+            cancellationToken);
 }

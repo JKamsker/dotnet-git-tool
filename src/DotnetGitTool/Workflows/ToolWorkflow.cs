@@ -1,6 +1,3 @@
-using System.Text.RegularExpressions;
-using System.Security.Cryptography;
-using System.Text;
 using DotnetGitTool.Commands;
 using DotnetGitTool.Discovery;
 using DotnetGitTool.Infrastructure;
@@ -11,16 +8,17 @@ using DotnetGitTool.State;
 
 namespace DotnetGitTool.Workflows;
 
-public sealed partial class ToolWorkflow(
+public sealed class ToolWorkflow(
     SourceSpecParser sourceParser,
-    RepositoryCloner cloner,
+    RepositoryCache repositoryCache,
     ProjectDiscovery discovery,
     InstallationStore store,
+    ToolPackager packager,
     IProcessRunner processes,
     ICliOutput output)
 {
     public async Task<int> InstallAsync(
-        MutationSettings settings,
+        ToolCommandSettings settings,
         string sourceValue,
         string? requestedRef,
         string? project,
@@ -28,6 +26,7 @@ public sealed partial class ToolWorkflow(
     {
         return await ExecuteAsync(settings, async () =>
         {
+            var commandStyle = settings.ResolveCommandStyleOverride() ?? ToolCommandStyle.Dotnet;
             var source = sourceParser.Parse(sourceValue, requestedRef);
             var existing = await store.FindAsync(source.SourceId, cancellationToken);
             if (existing is not null)
@@ -40,29 +39,50 @@ public sealed partial class ToolWorkflow(
 
             if (settings.DryRun)
             {
+                var repositoryPath = repositoryCache.GetRepositoryPath(source);
                 output.Success(settings,
-                    new { action = "install", source = source.Display, project, executesRepositoryCode = true },
-                    $"Would clone {source.Display}, discover {project ?? "a tool project"}, pack it, and install it globally.");
+                    new
+                    {
+                        action = "install",
+                        source = source.Display,
+                        project,
+                        commandStyle = StyleName(commandStyle),
+                        repositoryPath,
+                        repositoryCached = Directory.Exists(Path.Combine(repositoryPath, ".git")),
+                        executesRepositoryCode = true,
+                    },
+                    $"Would prepare cached sources for {source.Display}, discover {project ?? "a tool project"}, pack it for " +
+                    $"{StyleDescription(commandStyle)}, install it globally, and retain clean sources at {repositoryPath}.");
                 return ExitCodes.Success;
             }
 
             InteractionGuard.ConfirmCodeExecution(settings, source.Display);
             output.Diagnostic(settings, $"Clone URL: {source.CloneUrl}");
-            output.Status(settings, $"Cloning {source.Display}...");
-            using var repository = await cloner.CloneAsync(source, cancellationToken);
+            output.Status(settings, $"Preparing cached repository for {source.Display}...");
+            await using var repository = await repositoryCache.PrepareAsync(source, cancellationToken);
+            output.Diagnostic(settings, $"Repository cache: {repository.Path}");
             output.Diagnostic(settings, $"Resolved commit: {repository.Commit}");
             output.Status(settings, "Discovering executable projects with MSBuild...");
             var selection = await discovery.DiscoverAsync(repository.Path, project, cancellationToken);
-            var packageId = GeneratePackageId(source.SourceId);
-            var version = GenerateVersion(repository.Commit);
-            var command = selection.CommandName;
+            var packageId = ToolPackageIdentity.GeneratePackageId(source.SourceId);
+            var version = ToolPackageIdentity.GenerateVersion(repository.Commit, commandStyle);
+            var command = ToolCommandIdentity.Create(selection.CommandName, commandStyle);
             output.Diagnostic(settings, $"Selected project: {selection.Project.RelativePath}");
-            output.Diagnostic(settings, $"Generated package: {packageId} {version}; command: {command}");
-            var packageDirectory = await PackAsync(settings, repository, selection, packageId, version, cancellationToken);
+            output.Diagnostic(settings,
+                $"Generated package: {packageId} {version}; tool command: {command.PackageCommand}; invocation: {command.Invocation}");
+            using var package = await packager.PackAsync(
+                settings,
+                repository.Path,
+                selection,
+                packageId,
+                version,
+                command.PackageCommand,
+                cancellationToken);
+            await repository.CleanAsync(CancellationToken.None);
 
             output.Status(settings, $"Installing {packageId} {version} globally...");
             (await processes.RunAsync("dotnet",
-                    ["tool", "install", "--global", packageId, "--version", version, "--add-source", packageDirectory,
+                    ["tool", "install", "--global", packageId, "--version", version, "--add-source", package.PackageDirectory,
                         "--ignore-failed-sources"],
                     cancellationToken: cancellationToken))
                 .EnsureSuccess($"Installing {packageId}");
@@ -75,7 +95,9 @@ public sealed partial class ToolWorkflow(
                 packageId,
                 version,
                 repository.Commit,
-                command,
+                command.Invocation,
+                command.StyleName,
+                repository.Path,
                 DateTimeOffset.UtcNow);
             try
             {
@@ -90,13 +112,14 @@ public sealed partial class ToolWorkflow(
 
             output.Success(settings,
                 new { action = "installed", installation = record },
-                $"Installed {source.SourceId} at {ShortCommit(repository.Commit)}. Command: {command}");
+                $"Installed {source.SourceId} at {ToolPackageIdentity.ShortCommit(repository.Commit)}. " +
+                $"Command: {command.Invocation}. Clean sources: {repository.Path}");
             return ExitCodes.Success;
         });
     }
 
     public async Task<int> UpdateAsync(
-        MutationSettings settings,
+        ToolCommandSettings settings,
         string sourceValue,
         string? requestedRef,
         string? project,
@@ -104,6 +127,7 @@ public sealed partial class ToolWorkflow(
     {
         return await ExecuteAsync(settings, async () =>
         {
+            var commandStyleOverride = settings.ResolveCommandStyleOverride();
             var requested = sourceParser.Parse(sourceValue, requestedRef);
             var installed = await store.FindAsync(requested.SourceId, cancellationToken)
                 ?? throw new CliException(
@@ -115,38 +139,69 @@ public sealed partial class ToolWorkflow(
                 installed.SourceId,
                 requested.RequestedRef ?? installed.RequestedRef);
             var selectedProject = project ?? installed.Project;
+            var installedStyle = ToolCommandIdentity.InferInstalledStyle(installed);
+            var commandStyle = commandStyleOverride ?? installedStyle;
 
             if (settings.DryRun)
             {
+                var repositoryPath = repositoryCache.GetRepositoryPath(source);
                 output.Success(settings,
-                    new { action = "update", source = source.Display, project = selectedProject, executesRepositoryCode = true },
-                    $"Would clone {source.Display}, rebuild {selectedProject}, and update {installed.PackageId} globally.");
+                    new
+                    {
+                        action = "update",
+                        source = source.Display,
+                        project = selectedProject,
+                        commandStyle = StyleName(commandStyle),
+                        repositoryPath,
+                        repositoryCached = Directory.Exists(Path.Combine(repositoryPath, ".git")),
+                        executesRepositoryCode = true,
+                    },
+                    $"Would refresh cached sources for {source.Display}, rebuild {selectedProject} for {StyleDescription(commandStyle)}, " +
+                    $"update {installed.PackageId} globally, and retain clean sources at {repositoryPath}.");
                 return ExitCodes.Success;
             }
 
             InteractionGuard.ConfirmCodeExecution(settings, source.Display);
             output.Diagnostic(settings, $"Clone URL: {source.CloneUrl}");
-            output.Status(settings, $"Cloning {source.Display}...");
-            using var repository = await cloner.CloneAsync(source, cancellationToken);
+            output.Status(settings, $"Refreshing cached repository for {source.Display}...");
+            await using var repository = await repositoryCache.PrepareAsync(source, cancellationToken);
+            output.Diagnostic(settings, $"Repository cache: {repository.Path}");
             output.Diagnostic(settings, $"Resolved commit: {repository.Commit}");
-            if (repository.Commit.Equals(installed.Commit, StringComparison.OrdinalIgnoreCase))
+            if (repository.Commit.Equals(installed.Commit, StringComparison.OrdinalIgnoreCase) && commandStyle == installedStyle)
             {
+                var unchangedRecord = installed with
+                {
+                    CommandStyle = StyleName(installedStyle),
+                    RepositoryPath = repository.Path,
+                };
+                await store.ReplaceAsync(unchangedRecord, cancellationToken);
                 output.Success(settings,
-                    new { action = "unchanged", installation = installed },
-                    $"{installed.SourceId} is already at {ShortCommit(installed.Commit)}.");
+                    new { action = "unchanged", installation = unchangedRecord },
+                    $"{installed.SourceId} is already at {ToolPackageIdentity.ShortCommit(installed.Commit)}. " +
+                    $"Clean sources: {repository.Path}");
                 return ExitCodes.Success;
             }
 
             var selection = await discovery.DiscoverAsync(repository.Path, selectedProject, cancellationToken);
-            var version = GenerateVersion(repository.Commit);
-            var command = selection.CommandName;
+            var version = ToolPackageIdentity.GenerateVersion(repository.Commit, commandStyle);
+            var command = ToolCommandIdentity.Create(selection.CommandName, commandStyle);
             output.Diagnostic(settings, $"Selected project: {selection.Project.RelativePath}");
-            output.Diagnostic(settings, $"Generated package: {installed.PackageId} {version}; command: {command}");
-            var packageDirectory = await PackAsync(settings, repository, selection, installed.PackageId, version, cancellationToken);
+            output.Diagnostic(settings,
+                $"Generated package: {installed.PackageId} {version}; tool command: {command.PackageCommand}; " +
+                $"invocation: {command.Invocation}");
+            using var package = await packager.PackAsync(
+                settings,
+                repository.Path,
+                selection,
+                installed.PackageId,
+                version,
+                command.PackageCommand,
+                cancellationToken);
+            await repository.CleanAsync(CancellationToken.None);
 
             output.Status(settings, $"Updating {installed.PackageId} to {version}...");
             (await processes.RunAsync("dotnet",
-                    ["tool", "update", "--global", installed.PackageId, "--version", version, "--add-source", packageDirectory,
+                    ["tool", "update", "--global", installed.PackageId, "--version", version, "--add-source", package.PackageDirectory,
                         "--ignore-failed-sources", "--allow-downgrade"],
                     cancellationToken: cancellationToken))
                 .EnsureSuccess($"Updating {installed.PackageId}");
@@ -157,13 +212,16 @@ public sealed partial class ToolWorkflow(
                 Project = selection.Project.RelativePath,
                 Version = version,
                 Commit = repository.Commit,
-                Command = command,
+                Command = command.Invocation,
+                CommandStyle = command.StyleName,
+                RepositoryPath = repository.Path,
                 InstalledAt = DateTimeOffset.UtcNow,
             };
             await store.ReplaceAsync(record, cancellationToken);
             output.Success(settings,
                 new { action = "updated", installation = record },
-                $"Updated {record.SourceId} to {ShortCommit(record.Commit)}. Command: {command}");
+                $"Updated {record.SourceId} to {ToolPackageIdentity.ShortCommit(record.Commit)}. " +
+                $"Command: {command.Invocation}. Clean sources: {repository.Path}");
             return ExitCodes.Success;
         });
     }
@@ -195,35 +253,10 @@ public sealed partial class ToolWorkflow(
             await store.RemoveAsync(installed.SourceId, cancellationToken);
             output.Success(settings,
                 new { action = "uninstalled", installation = installed },
-                $"Uninstalled {installed.SourceId} ({installed.PackageId}).");
+                $"Uninstalled {installed.SourceId} ({installed.PackageId})." +
+                (installed.RepositoryPath is null ? string.Empty : $" Cached sources retained at {installed.RepositoryPath}."));
             return ExitCodes.Success;
         });
-    }
-
-    private async Task<string> PackAsync(
-        GlobalSettings settings,
-        ClonedRepository repository,
-        ProjectSelection selection,
-        string packageId,
-        string version,
-        CancellationToken cancellationToken)
-    {
-        var packageDirectory = Path.Combine(Path.GetDirectoryName(repository.Path)!, "packages");
-        Directory.CreateDirectory(packageDirectory);
-        var arguments = new List<string>
-        {
-            "pack", selection.Project.Path, "--configuration", "Release", "--output", packageDirectory,
-            $"-p:PackAsTool=true", $"-p:PackageId={packageId}", $"-p:Version={version}",
-        };
-        if (!string.IsNullOrWhiteSpace(selection.CommandOverride))
-        {
-            arguments.Add($"-p:ToolCommandName={selection.CommandOverride}");
-        }
-
-        output.Status(settings, $"Packing {selection.Project.RelativePath}...");
-        (await processes.RunAsync("dotnet", arguments, repository.Path, cancellationToken))
-            .EnsureSuccess($"Packing {selection.Project.RelativePath}");
-        return packageDirectory;
     }
 
     private async Task<int> ExecuteAsync(GlobalSettings settings, Func<Task<int>> action)
@@ -251,23 +284,9 @@ public sealed partial class ToolWorkflow(
         }
     }
 
-    public static string GeneratePackageId(string sourceId)
-    {
-        var safe = InvalidPackageCharacter().Replace(sourceId.Replace('/', '.'), "-").Trim('.', '-');
-        var packageId = $"git.{safe}";
-        if (packageId.Length <= 100)
-        {
-            return packageId;
-        }
+    private static string StyleName(ToolCommandStyle commandStyle)
+        => commandStyle == ToolCommandStyle.Dotnet ? "dotnet" : "standalone";
 
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sourceId)))[..12].ToLowerInvariant();
-        return $"{packageId[..87]}.{hash}";
-    }
-
-    private static string GenerateVersion(string commit) => $"0.0.0-git.{ShortCommit(commit).ToLowerInvariant()}";
-
-    private static string ShortCommit(string commit) => commit[..Math.Min(12, commit.Length)];
-
-    [GeneratedRegex("[^A-Za-z0-9_.-]+")]
-    private static partial Regex InvalidPackageCharacter();
+    private static string StyleDescription(ToolCommandStyle commandStyle)
+        => commandStyle == ToolCommandStyle.Dotnet ? "a 'dotnet <command>' invocation" : "an unprefixed command";
 }

@@ -9,6 +9,8 @@ public sealed record InstallationRecord(
     string Version,
     string Commit,
     string? Command,
+    string? CommandStyle,
+    string? RepositoryPath,
     DateTimeOffset InstalledAt);
 
 internal sealed record InstallationState(int SchemaVersion, List<InstallationRecord> Installations)

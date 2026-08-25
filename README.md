@@ -5,6 +5,7 @@
 ```console
 dotnet git-tool install JKamsker/bookmeta-cli --dry-run
 dotnet git-tool install JKamsker/bookmeta-cli --yes
+dotnet git-tool install JKamsker/bookmeta-cli --yes --standalone
 dotnet git-tool install JKamsker/bookmeta-cli@v1.2.0 --yes
 dotnet git-tool update JKamsker/bookmeta-cli --yes
 dotnet git-tool uninstall JKamsker/bookmeta-cli --yes
@@ -25,6 +26,24 @@ dotnet tool install --global dotnet-git-tool --add-source artifacts
 
 The command is named `dotnet-git-tool`, which makes the .NET driver invocation `dotnet git-tool` work.
 
+## Installed command style
+
+By default, a discovered command such as `bookmeta` is packaged as `dotnet-bookmeta`, so it is invoked through the .NET driver:
+
+```console
+dotnet git-tool install JKamsker/bookmeta-cli --yes
+dotnet bookmeta --help
+```
+
+Use `--standalone` to expose the command without the `dotnet` prefix:
+
+```console
+dotnet git-tool install JKamsker/bookmeta-cli --yes --standalone
+bookmeta --help
+```
+
+Both modes are global .NET tool installations; `--standalone` changes only the command name. Updates preserve the recorded style. Pass `--standalone` or `--dotnet-command` to `update` to change an existing installation. The explicit flags are mutually exclusive.
+
 ## Project discovery
 
 The installer evaluates `.csproj` files through MSBuild and chooses a project in this order:
@@ -43,13 +62,27 @@ Ambiguity is an error. A directory passed to `--project` must contain exactly on
 }
 ```
 
-Normal console projects are packed with `PackAsTool=true`. Generated packages use an ID such as `git.JKamsker.bookmeta-cli` and a commit-derived version such as `0.0.0-git.0123456789ab`.
+Normal console projects are packed with `PackAsTool=true`. Generated packages use an ID such as `git.JKamsker.bookmeta-cli` and a commit/style-derived version such as `0.0.0-git.0123456789ab.dotnet`.
+
+## Repository cache
+
+Source repositories are cloned once and retained in a cache. Install and update both reuse the same working tree; update fetches the remote default branch or requested ref and resets the cache to the fetched commit without creating local merge commits.
+
+After every MSBuild evaluation and pack attempt—including failures—the cache is restored with `git reset --hard HEAD` and `git clean -ffdx`. Initialized submodules are reset and cleaned recursively, and a final porcelain-status check must be empty. Package files are built in a separate temporary directory, so the retained repository contains only tracked source files.
+
+Cache location precedence is:
+
+1. `DOTNET_GIT_TOOL_CACHE`
+2. `$XDG_CACHE_HOME/dotnet-git-tool`
+3. `~/.cache/dotnet-git-tool` on Unix, or the platform local application-data cache on Windows
+
+Each source identity maps to a deterministic directory under `repositories/`, with a per-repository lock to prevent concurrent builds from sharing a working tree. Uninstall retains the clean source cache so a later reinstall can reuse it.
 
 ## Resolution and automation
 
-Resolution precedence is command flags (`--ref`, `--project`) → embedded `owner/repo@ref` → repository manifest → project conventions → defaults. For updates, a recorded ref and project are reused unless explicitly overridden; there is no implicit switch to another target.
+Resolution precedence is command flags (`--ref`, `--project`, command-style flags) → embedded `owner/repo@ref` → recorded update settings → repository manifest → project conventions → defaults. New installations default to the `dotnet <command>` style. Updates reuse their recorded ref, project, and command style unless explicitly overridden; there is no implicit switch to another target.
 
-Managed installation state includes the clone URL, project, package ID, requested ref, and installed commit. Its location is resolved as:
+Managed installation state includes the clone URL, cached repository path, project, package ID, requested ref, command style, and installed commit. Its location is resolved as:
 
 1. `DOTNET_GIT_TOOL_HOME/installed.json`
 2. `$XDG_DATA_HOME/dotnet-git-tool/installed.json`

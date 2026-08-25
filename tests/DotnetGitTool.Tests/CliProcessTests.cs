@@ -14,6 +14,8 @@ public sealed class CliProcessTests
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("--dry-run", result.StandardOutput);
         Assert.Contains("--yes", result.StandardOutput);
+        Assert.Contains("--standalone", result.StandardOutput);
+        Assert.Contains("--dotnet-command", result.StandardOutput);
         Assert.Empty(result.StandardError);
     }
 
@@ -33,6 +35,37 @@ public sealed class CliProcessTests
             Assert.False(document.RootElement.GetProperty("ok").GetBoolean());
             Assert.Equal("confirmation_required",
                 document.RootElement.GetProperty("error").GetProperty("kind").GetString());
+        }
+        finally
+        {
+            stateDirectory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task CommandStyleFlagsAreMutuallyExclusiveUsageError()
+    {
+        var result = await RunAsync(
+            ["install", "owner/repository", "--dry-run", "--standalone", "--dotnet-command"]);
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Contains("cannot be used together", result.StandardOutput + result.StandardError);
+    }
+
+    [Fact]
+    public async Task DefaultDryRunReportsDotnetCommandStyleInJson()
+    {
+        var stateDirectory = Directory.CreateTempSubdirectory("dotnet-git-tool-tests-");
+        try
+        {
+            var result = await RunAsync(
+                ["install", "owner/repository", "--dry-run", "--json"],
+                new Dictionary<string, string> { ["DOTNET_GIT_TOOL_HOME"] = stateDirectory.FullName });
+
+            Assert.Equal(0, result.ExitCode);
+            using var document = JsonDocument.Parse(result.StandardOutput);
+            Assert.Equal("dotnet",
+                document.RootElement.GetProperty("data").GetProperty("commandStyle").GetString());
         }
         finally
         {

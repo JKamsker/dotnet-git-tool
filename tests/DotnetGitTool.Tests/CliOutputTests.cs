@@ -16,6 +16,8 @@ public sealed class CliOutputTests
         "0.0.0-git.0123456789ab",
         "0123456789abcdef",
         "example",
+        "standalone",
+        null,
         DateTimeOffset.UnixEpoch);
 
     [Fact]

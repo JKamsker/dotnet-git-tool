@@ -7,7 +7,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>dotnet-git-tool</ToolCommandName>
     <PackageId>dotnet-git-tool</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Description>Build and install .NET global tools directly from Git repositories.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>

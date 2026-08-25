@@ -12,16 +12,18 @@ var services = new ServiceRegistry();
 services.AddSingleton<ICliOutput>(new CliOutput(Console.Out, Console.Error));
 services.AddSingleton<IProcessRunner, ProcessRunner>();
 services.AddSingleton<SourceSpecParser>();
-services.AddSingleton<RepositoryCloner>();
+services.AddSingleton(new RepositoryCachePath());
+services.AddSingleton<RepositoryCache>();
 services.AddSingleton<ProjectDiscovery>();
 services.AddSingleton<InstallationStore>();
+services.AddSingleton<ToolPackager>();
 services.AddSingleton<ToolWorkflow>();
 
 var app = new CommandApp(new TypeRegistrar(services));
 app.Configure(config =>
 {
     config.SetApplicationName("dotnet git-tool");
-    config.SetApplicationVersion("0.1.0");
+    config.SetApplicationVersion("0.2.0");
     config.SetExceptionHandler((exception, _) =>
     {
         Console.Error.WriteLine($"error: {exception.Message}");
@@ -31,7 +33,8 @@ app.Configure(config =>
     config.AddCommand<InstallCommand>("install")
         .WithDescription("Clone, discover, pack, and globally install a tool from source.")
         .WithExample("install", "JKamsker/bookmeta-cli", "--dry-run")
-        .WithExample("install", "JKamsker/bookmeta-cli", "--yes");
+        .WithExample("install", "JKamsker/bookmeta-cli", "--yes")
+        .WithExample("install", "JKamsker/bookmeta-cli", "--yes", "--standalone");
     config.AddCommand<UpdateCommand>("update")
         .WithDescription("Rebuild and update a previously installed source tool.")
         .WithExample("update", "JKamsker/bookmeta-cli", "--dry-run");
@@ -42,4 +45,5 @@ app.Configure(config =>
         .WithDescription("List source tools managed by dotnet git-tool.");
 });
 
-return await app.RunAsync(args);
+var exitCode = await app.RunAsync(args);
+return exitCode == -1 ? ExitCodes.Usage : exitCode;
