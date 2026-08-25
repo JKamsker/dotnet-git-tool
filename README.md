@@ -7,6 +7,7 @@ dotnet git-tool install JKamsker/bookmeta-cli --dry-run
 dotnet git-tool install JKamsker/bookmeta-cli --yes
 dotnet git-tool install JKamsker/bookmeta-cli --yes --standalone
 dotnet git-tool install JKamsker/bookmeta-cli@v1.2.0 --yes
+dotnet git-tool install JKamsker/bookmeta-cli@f589ee1 --yes
 dotnet git-tool update JKamsker/bookmeta-cli --yes
 dotnet git-tool uninstall JKamsker/bookmeta-cli --yes
 dotnet git-tool list
@@ -81,6 +82,8 @@ MSBuild evaluation and packing initially honor the source repository's `global.j
 ## Repository cache
 
 Source repositories are cloned once and retained in a cache. Install and update both reuse the same working tree; update fetches the remote default branch or requested ref and resets the cache to the fetched commit without creating local merge commits.
+
+Running `install` for an already managed repository updates that installation, so either `install owner/repo@ref` or `update owner/repo@ref` can switch versions. Abbreviated hexadecimal commit IDs such as `f589ee1` are resolved locally; when necessary, the fallback fetches full reachable branch history because Git servers cannot fetch an abbreviated object ID directly. Use a full 40-character commit ID for commits that are no longer reachable from a branch.
 
 After every MSBuild evaluation and pack attempt—including failures—the cache is restored with `git reset --hard HEAD` and `git clean -ffdx`. Initialized submodules are reset and cleaned recursively, and a final porcelain-status check must be empty. Package files are built in a separate temporary directory, so the retained repository contains only tracked source files.
 

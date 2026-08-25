@@ -91,6 +91,51 @@ public sealed class RepositoryCacheTests
         }
     }
 
+    [Fact]
+    public async Task ResolvesAbbreviatedCommitFromReachableBranchHistory()
+    {
+        var temporaryRoot = Directory.CreateTempSubdirectory("dotnet-git-tool-short-ref-tests-");
+        try
+        {
+            var origin = Path.Combine(temporaryRoot.FullName, "origin");
+            Directory.CreateDirectory(origin);
+            var processes = new ProcessRunner();
+            var cancellationToken = TestContext.Current.CancellationToken;
+            await GitAsync(processes, origin, cancellationToken, "init", "--initial-branch=main");
+            await GitAsync(processes, origin, cancellationToken, "config", "user.name", "Cache Test");
+            await GitAsync(processes, origin, cancellationToken, "config", "user.email", "cache@example.invalid");
+            await File.WriteAllTextAsync(Path.Combine(origin, "source.txt"), "first\n", cancellationToken);
+            await GitAsync(processes, origin, cancellationToken, "add", ".");
+            await GitAsync(processes, origin, cancellationToken, "commit", "-m", "first");
+            var firstCommit = (await GitAsync(processes, origin, cancellationToken, "rev-parse", "HEAD"))
+                .StandardOutput.Trim();
+            await File.WriteAllTextAsync(Path.Combine(origin, "source.txt"), "second\n", cancellationToken);
+            await GitAsync(processes, origin, cancellationToken, "add", "source.txt");
+            await GitAsync(processes, origin, cancellationToken, "commit", "-m", "second");
+
+            var cache = new RepositoryCache(
+                processes,
+                new RepositoryCachePath(Path.Combine(temporaryRoot.FullName, "cache")));
+            var cloneUrl = new Uri(origin + Path.DirectorySeparatorChar).AbsoluteUri;
+            var defaultSource = new SourceSpec(cloneUrl, "owner/repository", null);
+            await using (var repository = await cache.PrepareAsync(defaultSource, cancellationToken))
+            {
+                Assert.NotEqual(firstCommit, repository.Commit);
+            }
+
+            var abbreviatedSource = defaultSource with { RequestedRef = firstCommit[..7] };
+            await using var selected = await cache.PrepareAsync(abbreviatedSource, cancellationToken);
+
+            Assert.Equal(firstCommit, selected.Commit);
+            Assert.Equal("first", (await File.ReadAllTextAsync(
+                Path.Combine(selected.Path, "source.txt"), cancellationToken)).TrimEnd());
+        }
+        finally
+        {
+            DeleteGitTestDirectory(temporaryRoot.FullName);
+        }
+    }
+
     private static void DeleteGitTestDirectory(string path)
     {
         foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))

@@ -26,17 +26,14 @@ public sealed class ToolWorkflow(
     {
         return await ExecuteAsync(settings, async () =>
         {
-            var commandStyle = settings.ResolveCommandStyleOverride() ?? ToolCommandStyle.Dotnet;
             var source = sourceParser.Parse(sourceValue, requestedRef);
             var existing = await store.FindAsync(source.SourceId, cancellationToken);
             if (existing is not null)
             {
-                throw new CliException(
-                    $"'{source.SourceId}' is already managed. Use 'dotnet git-tool update {source.SourceId}'.",
-                    "already_installed",
-                    ExitCodes.Conflict);
+                return await UpdateExistingAsync(settings, source, existing, project, cancellationToken);
             }
 
+            var commandStyle = settings.ResolveCommandStyleOverride() ?? ToolCommandStyle.Dotnet;
             if (settings.DryRun)
             {
                 var repositoryPath = repositoryCache.GetRepositoryPath(source);
@@ -134,96 +131,115 @@ public sealed class ToolWorkflow(
                     $"'{requested.SourceId}' is not managed. Install it first with 'dotnet git-tool install {sourceValue}'.",
                     "installation_not_found",
                     ExitCodes.NotFound);
-            var source = new SourceSpec(
-                installed.CloneUrl,
-                installed.SourceId,
-                requested.RequestedRef ?? installed.RequestedRef);
-            var selectedProject = project ?? installed.Project;
-            var installedStyle = ToolCommandIdentity.InferInstalledStyle(installed);
-            var commandStyle = commandStyleOverride ?? installedStyle;
-
-            if (settings.DryRun)
-            {
-                var repositoryPath = repositoryCache.GetRepositoryPath(source);
-                output.Success(settings,
-                    new
-                    {
-                        action = "update",
-                        source = source.Display,
-                        project = selectedProject,
-                        commandStyle = StyleName(commandStyle),
-                        repositoryPath,
-                        repositoryCached = Directory.Exists(Path.Combine(repositoryPath, ".git")),
-                        executesRepositoryCode = true,
-                    },
-                    $"Would refresh cached sources for {source.Display}, rebuild {selectedProject} for {StyleDescription(commandStyle)}, " +
-                    $"update {installed.PackageId} globally, and retain clean sources at {repositoryPath}.");
-                return ExitCodes.Success;
-            }
-
-            InteractionGuard.ConfirmCodeExecution(settings, source.Display);
-            output.Diagnostic(settings, $"Clone URL: {source.CloneUrl}");
-            output.Status(settings, $"Refreshing cached repository for {source.Display}...");
-            await using var repository = await repositoryCache.PrepareAsync(source, cancellationToken);
-            output.Diagnostic(settings, $"Repository cache: {repository.Path}");
-            output.Diagnostic(settings, $"Resolved commit: {repository.Commit}");
-            if (repository.Commit.Equals(installed.Commit, StringComparison.OrdinalIgnoreCase) && commandStyle == installedStyle)
-            {
-                var unchangedRecord = installed with
-                {
-                    CommandStyle = StyleName(installedStyle),
-                    RepositoryPath = repository.Path,
-                };
-                await store.ReplaceAsync(unchangedRecord, cancellationToken);
-                output.Success(settings,
-                    new { action = "unchanged", installation = unchangedRecord },
-                    $"{installed.SourceId} is already at {ToolPackageIdentity.ShortCommit(installed.Commit)}. " +
-                    $"Clean sources: {repository.Path}");
-                return ExitCodes.Success;
-            }
-
-            var selection = await discovery.DiscoverAsync(repository.Path, selectedProject, cancellationToken);
-            var version = ToolPackageIdentity.GenerateVersion(repository.Commit, commandStyle);
-            var command = ToolCommandIdentity.Create(selection.CommandName, commandStyle);
-            output.Diagnostic(settings, $"Selected project: {selection.Project.RelativePath}");
-            output.Diagnostic(settings,
-                $"Generated package: {installed.PackageId} {version}; tool command: {command.PackageCommand}; " +
-                $"invocation: {command.Invocation}");
-            using var package = await packager.PackAsync(
+            return await UpdateExistingAsync(
                 settings,
-                repository.Path,
-                selection,
-                installed.PackageId,
-                version,
-                command.PackageCommand,
-                cancellationToken);
-            await repository.CleanAsync(CancellationToken.None);
+                requested,
+                installed,
+                project,
+                cancellationToken,
+                commandStyleOverride);
+        });
+    }
 
-            output.Status(settings, $"Updating {installed.PackageId} to {version}...");
-            (await processes.RunAsync("dotnet",
-                    ["tool", "update", "--global", installed.PackageId, "--version", version, "--add-source", package.PackageDirectory,
-                        "--ignore-failed-sources", "--allow-downgrade"],
-                    cancellationToken: cancellationToken))
-                .EnsureSuccess($"Updating {installed.PackageId}");
+    private async Task<int> UpdateExistingAsync(
+        ToolCommandSettings settings,
+        SourceSpec requested,
+        InstallationRecord installed,
+        string? project,
+        CancellationToken cancellationToken,
+        ToolCommandStyle? commandStyleOverride = null)
+    {
+        commandStyleOverride ??= settings.ResolveCommandStyleOverride();
+        var source = new SourceSpec(
+            installed.CloneUrl,
+            installed.SourceId,
+            requested.RequestedRef ?? installed.RequestedRef);
+        var selectedProject = project ?? installed.Project;
+        var installedStyle = ToolCommandIdentity.InferInstalledStyle(installed);
+        var commandStyle = commandStyleOverride ?? installedStyle;
 
-            var record = installed with
+        if (settings.DryRun)
+        {
+            var repositoryPath = repositoryCache.GetRepositoryPath(source);
+            output.Success(settings,
+                new
+                {
+                    action = "update",
+                    source = source.Display,
+                    project = selectedProject,
+                    commandStyle = StyleName(commandStyle),
+                    repositoryPath,
+                    repositoryCached = Directory.Exists(Path.Combine(repositoryPath, ".git")),
+                    executesRepositoryCode = true,
+                },
+                $"Would refresh cached sources for {source.Display}, rebuild {selectedProject} for {StyleDescription(commandStyle)}, " +
+                $"update {installed.PackageId} globally, and retain clean sources at {repositoryPath}.");
+            return ExitCodes.Success;
+        }
+
+        InteractionGuard.ConfirmCodeExecution(settings, source.Display);
+        output.Diagnostic(settings, $"Clone URL: {source.CloneUrl}");
+        output.Status(settings, $"Refreshing cached repository for {source.Display}...");
+        await using var repository = await repositoryCache.PrepareAsync(source, cancellationToken);
+        output.Diagnostic(settings, $"Repository cache: {repository.Path}");
+        output.Diagnostic(settings, $"Resolved commit: {repository.Commit}");
+        if (repository.Commit.Equals(installed.Commit, StringComparison.OrdinalIgnoreCase) && commandStyle == installedStyle)
+        {
+            var unchangedRecord = installed with
             {
                 RequestedRef = source.RequestedRef,
-                Project = selection.Project.RelativePath,
-                Version = version,
-                Commit = repository.Commit,
-                Command = command.Invocation,
-                CommandStyle = command.StyleName,
+                CommandStyle = StyleName(installedStyle),
                 RepositoryPath = repository.Path,
-                UpdatedAt = DateTimeOffset.UtcNow,
             };
-            await store.ReplaceAsync(record, cancellationToken);
+            await store.ReplaceAsync(unchangedRecord, cancellationToken);
             output.Success(settings,
-                new { action = "updated", installation = record },
-                $"Updated {record.SourceId} to {ToolPackageIdentity.ShortCommit(record.Commit)}. " +
-                $"Command: {command.Invocation}. Clean sources: {repository.Path}");
+                new { action = "unchanged", installation = unchangedRecord },
+                $"{installed.SourceId} is already at {ToolPackageIdentity.ShortCommit(installed.Commit)}. " +
+                $"Clean sources: {repository.Path}");
             return ExitCodes.Success;
-        });
+        }
+
+        var selection = await discovery.DiscoverAsync(repository.Path, selectedProject, cancellationToken);
+        var version = ToolPackageIdentity.GenerateVersion(repository.Commit, commandStyle);
+        var command = ToolCommandIdentity.Create(selection.CommandName, commandStyle);
+        output.Diagnostic(settings, $"Selected project: {selection.Project.RelativePath}");
+        output.Diagnostic(settings,
+            $"Generated package: {installed.PackageId} {version}; tool command: {command.PackageCommand}; " +
+            $"invocation: {command.Invocation}");
+        using var package = await packager.PackAsync(
+            settings,
+            repository.Path,
+            selection,
+            installed.PackageId,
+            version,
+            command.PackageCommand,
+            cancellationToken);
+        await repository.CleanAsync(CancellationToken.None);
+
+        output.Status(settings, $"Updating {installed.PackageId} to {version}...");
+        (await processes.RunAsync("dotnet",
+                ["tool", "update", "--global", installed.PackageId, "--version", version, "--add-source", package.PackageDirectory,
+                    "--ignore-failed-sources", "--allow-downgrade"],
+                cancellationToken: cancellationToken))
+            .EnsureSuccess($"Updating {installed.PackageId}");
+
+        var record = installed with
+        {
+            RequestedRef = source.RequestedRef,
+            Project = selection.Project.RelativePath,
+            Version = version,
+            Commit = repository.Commit,
+            Command = command.Invocation,
+            CommandStyle = command.StyleName,
+            RepositoryPath = repository.Path,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await store.ReplaceAsync(record, cancellationToken);
+        output.Success(settings,
+            new { action = "updated", installation = record },
+            $"Updated {record.SourceId} to {ToolPackageIdentity.ShortCommit(record.Commit)}. " +
+            $"Command: {command.Invocation}. Clean sources: {repository.Path}");
+        return ExitCodes.Success;
     }
 
     public async Task<int> UninstallAsync(
